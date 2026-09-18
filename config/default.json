@@ -1,0 +1,21 @@
+{
+  "ruleVersion": "wx-media-v1",
+  "timezone": "Asia/Shanghai",
+  "account": {
+    "readMedianFilterFloor": 50000,
+    "readMedianFilterRuleId": "105",
+    "verifyRuleId": "verify_institution",
+    "nameRuleId": "81",
+    "nameAcademicRuleId": "82",
+    "nameAcademicTerms": ["学", "学院", "大学", "学校"],
+    "nameTerms": ["本地", "俱乐部", "国际", "官方店", "旗舰店", "直营店", "专卖店", "门店", "商城"],
+    "verifyTerms": ["国", "省", "市", "厅", "部", "局", "处", "所", "村", "银行", "政", "军", "人民", "馆", "社", "院", "会", "室", "网", "报", "台", "体", "中", "欧", "基地", "媒", "管理", "学", "协会", "教", "寺", "观"]
+  },
+  "hotword": {
+    "minChineseGram": 2,
+    "maxChineseGram": 4,
+    "titleWeight": 2,
+    "minArticleCount": 1,
+    "stopWords": ["我们", "你们", "他们", "这个", "那个", "什么", "如何", "一个", "可以", "以及", "因为", "已经"]
+  }
+}

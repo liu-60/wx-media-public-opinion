@@ -1,0 +1,46 @@
+{
+  "runDate": "2026-09-18",
+  "now": "2026-09-18T04:30:00.000Z",
+  "accountRows": [
+    {
+      "wx_biz": "fixture-filtered",
+      "wx_name": "普通账号",
+      "verify": "个人",
+      "read_median": 49999
+    },
+    {
+      "wx_biz": "fixture-filtered",
+      "description": "重复来源行"
+    },
+    {
+      "wx_biz": "fixture-null-median",
+      "wx_name": "待审核账号",
+      "verify": "个人",
+      "read_median": null
+    }
+  ],
+  "articleRows": [
+    {
+      "article_id": "fixture-article-1",
+      "wx_biz": "fixture-filtered",
+      "title": "苹果发布会",
+      "content": "苹果发布会的观察",
+      "read_num": 100
+    },
+    {
+      "article_id": "fixture-article-2",
+      "wx_biz": "fixture-null-median",
+      "title": "苹果新闻",
+      "content": "苹果动态",
+      "read_num": 200
+    },
+    {
+      "article_id": "fixture-article-3",
+      "wx_biz": "fixture-new-account",
+      "wx_name": "文章发现的新账号",
+      "title": "苹果新账号",
+      "content": "苹果内容",
+      "read_num": 300
+    }
+  ]
+}
