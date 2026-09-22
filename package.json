@@ -6,10 +6,22 @@
   "packageManager": "pnpm@11.19.0",
   "scripts": {
     "test": "node --test test/*.test.mjs",
+    "management-center": "node management-center/server.mjs",
+    "build:management-center": "node scripts/build-management-center.mjs",
     "pipeline": "node scripts/run-pipeline.mjs",
     "snapshot": "node scripts/run-wxrank-snapshot.mjs"
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "@ant-design/icons": "5.6.1",
+    "antd": "5.27.0",
+    "dayjs": "1.11.13",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.0"
   }
 }

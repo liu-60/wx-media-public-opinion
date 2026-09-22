@@ -141,3 +141,79 @@ export function persistHotwords(db, rows = [], { now = nowIso() } = {}) {
   }
   return rows.length
 }
+
+class HotwordMergeError extends Error {
+  constructor(code, message = code) {
+    super(message)
+    this.name = 'HotwordMergeError'
+    this.code = code
+    this.status = 400
+  }
+}
+
+function mergeId(value) {
+  const id = typeof value === 'number' ? value : Number(String(value).trim())
+  if (!Number.isSafeInteger(id) || id < 1) throw new HotwordMergeError('HOTWORD_ID_INVALID')
+  return id
+}
+
+function mergeArray(value) {
+  return Array.isArray(value) ? value.filter(item => item !== undefined && item !== null).map(item => String(item)) : []
+}
+
+function validArticleUrl(value) {
+  if (typeof value !== 'string' || !value.trim()) return false
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function dedupeExact(values) {
+  return [...new Set(values)]
+}
+
+/**
+ * Merge already-read hotword rows. This function deliberately has no database
+ * dependency: article_keys are opaque source keys, not article table IDs.
+ */
+export function canonicalHotwordMerge({ rows, targetId } = {}) {
+  if (!Array.isArray(rows) || rows.length < 1) throw new HotwordMergeError('HOTWORD_ROWS_REQUIRED')
+  if (targetId === undefined || targetId === null || targetId === '') throw new HotwordMergeError('HOTWORD_TARGET_REQUIRED')
+  const normalizedTargetId = mergeId(targetId)
+  const target = rows.find(row => mergeId(row?.id) === normalizedTargetId)
+  if (!target) throw new HotwordMergeError('HOTWORD_TARGET_REQUIRED')
+  const dates = new Set(rows.map(row => String(row?.stat_date ?? '')))
+  if (dates.size !== 1 || !dates.values().next().value) throw new HotwordMergeError('HOTWORD_DATE_MISMATCH')
+
+  const aliases = []
+  for (const row of rows) {
+    if (row !== target && row.hotword !== undefined && row.hotword !== null) aliases.push(String(row.hotword))
+    aliases.push(...mergeArray(row.aliases))
+  }
+  const canonicalHotword = String(target.hotword ?? '')
+  const mergedAliases = dedupeExact(aliases).filter(alias => alias !== canonicalHotword)
+  const articleKeys = dedupeExact(rows.flatMap(row => mergeArray(row.article_keys)))
+  if (articleKeys.length < 2 || articleKeys.length > 32767) throw new HotwordMergeError('HOTWORD_COUNT_OUT_OF_RANGE')
+
+  const candidateUrls = [target, ...rows.filter(row => row !== target)]
+    .map(row => row.article_url)
+    .find(validArticleUrl)
+  const merged = {
+    ...target,
+    aliases: mergedAliases,
+    article_count: articleKeys.length,
+    article_keys: articleKeys,
+    article_url: candidateUrls ? String(candidateUrls) : null
+  }
+  return {
+    target: merged,
+    removedIds: rows.filter(row => mergeId(row.id) !== normalizedTargetId).map(row => row.id)
+  }
+}
+
+export function mergeHotwordRow(input = {}) {
+  return canonicalHotwordMerge(input)
+}

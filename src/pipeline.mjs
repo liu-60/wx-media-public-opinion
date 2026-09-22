@@ -1,9 +1,8 @@
-import crypto from 'node:crypto'
 import configFile from '../config/default.json' with { type: 'json' }
 import { nowIso } from './db.mjs'
 import { syncAccounts, timestampToIso } from './account-sync.mjs'
 import { ensureArticleAccount } from './account-collection.mjs'
-import { coarseFilterArticle, persistFilterAudit, DEFAULT_FILTER_CONFIG } from './article-filter.mjs'
+import { articleIdentity, coarseFilterArticle, createRuleSnapshot, persistFilterAudit, DEFAULT_FILTER_CONFIG } from './article-filter.mjs'
 import { aggregateHotwords, persistHotwords } from './hotwords.mjs'
 import { fetchAccountSources } from './wxrank-client.mjs'
 
@@ -43,10 +42,7 @@ function dateKey(value, fallback) {
 }
 
 function articleId(article, normalized) {
-  const explicit = text(first(article, 'article_id', 'articleId', 'art_id', 'id'))
-  if (explicit) return explicit
-  const seed = [normalized.article_url, normalized.title, normalized.publish_time, normalized.wx_biz].join('\n')
-  return `article_${crypto.createHash('sha256').update(seed, 'utf8').digest('hex').slice(0, 24)}`
+  return articleIdentity({ ...article, ...normalized }).articleId
 }
 
 function normalizeArticle(article = {}) {
@@ -67,7 +63,21 @@ function normalizeArticle(article = {}) {
     read_num: integer(first(article, 'read_num', 'readNum', 'read')),
     like_num: integer(first(article, 'like_num', 'likeNum', 'like')),
     look_num: integer(first(article, 'look_num', 'lookNum', 'look')),
-    share_num: integer(first(article, 'share_num', 'shareNum', 'share'))
+    share_num: integer(first(article, 'share_num', 'shareNum', 'share')),
+    comment_num: integer(first(article, 'comment_num', 'commentNum', 'comment', 'comment_count'))
+  }
+}
+
+function decisionForAccount(account, accountDecisions) {
+  if (!account || accountDecisions === undefined) return account
+  const keys = [account.account_id, account.wx_biz].filter(Boolean)
+  let value
+  if (accountDecisions instanceof Map) value = keys.map(key => accountDecisions.get(key)).find(item => item !== undefined)
+  else value = keys.map(key => accountDecisions[key]).find(item => item !== undefined)
+  return {
+    ...account,
+    decision_status: value && typeof value === 'object' ? value.decision_status : value,
+    decision_required: true
   }
 }
 
@@ -104,9 +114,21 @@ export function runPipeline({
   now = nowIso(),
   source = 'wxrank',
   ruleConfig = DEFAULT_FILTER_CONFIG,
+  ruleSnapshot = undefined,
+  accountDecisions = undefined,
+  persistedRules = undefined,
+  ruleSource = 'default',
+  ruleLoadedAt = now,
   hotwordConfig = configFile.hotword || {}
 } = {}) {
   if (!db) throw new TypeError('db is required')
+  if (ruleSnapshot !== undefined && (!ruleSnapshot || !Array.isArray(ruleSnapshot.rules))) throw new TypeError('ruleSnapshot.rules must be an array')
+  const suppliedRules = ruleSnapshot?.rules ?? persistedRules
+  const snapshot = createRuleSnapshot(suppliedRules ?? [], {
+    source: ruleSnapshot?.source || (suppliedRules === undefined ? 'default' : ruleSource),
+    loadedAt: ruleSnapshot?.loadedAt || ruleLoadedAt
+  })
+  const activeRules = suppliedRules === undefined ? undefined : snapshot.rules
   const statDate = dateKey(runDate, now)
   const accountSummary = syncAccounts(db, accountRows, {
     source,
@@ -127,20 +149,21 @@ export function runPipeline({
         newAccountsFromArticles += result.created ? 1 : 0
         account = readAccount(db, article.wx_biz)
       }
-      const decision = coarseFilterArticle(article, account, ruleConfig)
+      const accountWithDecision = decisionForAccount(account, accountDecisions)
+      const decision = coarseFilterArticle(article, accountWithDecision, ruleConfig, activeRules)
       persistArticle(db, article, account, decision, source, now)
       const record = {
         article_id: article.article_id,
         title: article.title,
         wx_biz: article.wx_biz,
-        account_id: account?.account_id || null,
+        account_id: accountWithDecision?.account_id || null,
         status: decision.status,
         filterRuleId: decision.filterRuleId,
         reason: decision.reason,
         accountMatched: decision.accountMatched
       }
       decisions.push(record)
-      normalizedArticles.push({ ...article, account_id: account?.account_id || null })
+      normalizedArticles.push({ ...article, account_id: accountWithDecision?.account_id || null })
     }
     const hotwordRows = aggregateHotwords(normalizedArticles, {
       ...hotwordConfig,
@@ -152,6 +175,12 @@ export function runPipeline({
     const statusCounts = Object.fromEntries([...new Set(decisions.map(item => item.status))].map(status => [status, decisions.filter(item => item.status === status).length]))
     return {
       runDate: statDate,
+      filterRules: {
+        source: snapshot.source,
+        loadedAt: snapshot.loadedAt,
+        count: snapshot.count,
+        hash: snapshot.hash
+      },
       accounts: accountSummary,
       articles: {
         rawCount: decisions.length,

@@ -2,11 +2,14 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { coarseFilterArticle, DEFAULT_FILTER_CONFIG, evaluateAccountRules } from '../src/article-filter.mjs'
 
-test('null read_median skips rule 105 but an explicit value below 50000 matches it', () => {
+test('missing or blank read_median skips rule 105 while numeric boundaries remain exact', () => {
   const base = { wx_name: '普通账号', verify: '个人' }
-  assert.equal(evaluateAccountRules({ ...base, read_median: null }, DEFAULT_FILTER_CONFIG).filtered, false)
+  for (const read_median of [null, undefined, '', '   ']) {
+    assert.equal(evaluateAccountRules({ ...base, read_median }, DEFAULT_FILTER_CONFIG).filtered, false)
+  }
   assert.equal(evaluateAccountRules({ ...base, read_median: 49999 }, DEFAULT_FILTER_CONFIG).ruleId, '105')
   assert.equal(evaluateAccountRules({ ...base, read_median: 0 }, DEFAULT_FILTER_CONFIG).ruleId, '105')
+  assert.equal(evaluateAccountRules({ ...base, read_median: 50000 }, DEFAULT_FILTER_CONFIG).filtered, false)
 })
 
 test('name rule 82 can filter an account even when read_median is null', () => {
@@ -38,4 +41,28 @@ test('filtered account blocks selection but returns an auditable status', () => 
   assert.equal(result.status, 'ACCOUNT_FILTERED')
   assert.equal(result.filterRuleId, '105')
   assert.equal(result.accountMatched, true)
+})
+
+test('persistent rules keep null numeric fields unmatched and decision_status=2 blocks even with no rules', async () => {
+  const module = await import('../src/article-filter.mjs')
+  assert.equal(typeof module.evaluatePersistedRules, 'function')
+  const rule = { id: 105, scope: 'account', field_name: 'read_median', operator: 'lt', value_number: 50000, value_text: null, enabled: true }
+  assert.equal(module.evaluatePersistedRules({ read_median: null }, {}, [rule]).filtered, false)
+  assert.equal(module.evaluatePersistedRules({ read_median: 49999 }, {}, [rule]).ruleId, 105)
+  const decision = coarseFilterArticle(
+    { title: '文章' },
+    { wx_name: '普通账号', verify: '个人', read_median: 90000, decision_status: 2 },
+    DEFAULT_FILTER_CONFIG,
+    []
+  )
+  assert.equal(decision.status, 'ACCOUNT_FILTERED')
+})
+
+test('persistent article comment rule accepts comment_num, commentNum, and comment aliases', async () => {
+  const module = await import('../src/article-filter.mjs')
+  assert.equal(typeof module.evaluatePersistedRules, 'function')
+  const rules = [{ id: 103, scope: 'article', field_name: 'comment_count', operator: 'lt', value_number: 10, value_text: null, enabled: true }]
+  for (const article of [{ comment_num: 2 }, { commentNum: 2 }, { comment: 2 }]) {
+    assert.equal(module.evaluatePersistedRules({}, article, rules).ruleId, 103)
+  }
 })

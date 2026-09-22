@@ -46,12 +46,11 @@ test('builds an existing-schema Supabase write set without migrating old data', 
   assert.deepEqual(writeSet.hotwords.map(item => item.hotword), ['苹果'])
   assert.equal(writeSet.hotwords[0].stat_date, '2026-09-18')
   assert.deepEqual(writeSet.hotwords[0].article_keys, ['article-selected', 'article-filtered'])
-  assert.equal(writeSet.job.params.no_migration, true)
-  assert.equal(writeSet.job.params.filter_audit.length, 2)
-  assert.equal(writeSet.steps.length, 4)
+  assert.equal(Object.hasOwn(writeSet, 'job'), false)
+  assert.equal(Object.hasOwn(writeSet, 'steps'), false)
 })
 
-test('REST sink writes only the existing Supabase tables and keeps the account id join server-resolved', async () => {
+test('REST sink writes only the six existing Supabase tables, preserves manual fields, and keeps the account id join server-resolved', async () => {
   const writeSet = buildSupabaseWriteSet({
     accountRows: [{ wx_biz: 'biz-rest', wx_name: 'REST账号', read_median: 90000 }],
     articleRows: [{ article_id: 'rest-article', wx_biz: 'biz-rest', title: 'REST文章', read_num: 12 }],
@@ -68,19 +67,16 @@ test('REST sink writes only the existing Supabase tables and keeps the account i
     calls.push({ url: String(url), options })
     const parsed = new URL(url)
     if (parsed.pathname.endsWith('/accounts') && options.method === 'GET') {
-      return { ok: true, status: 200, json: async () => [] }
+      return { ok: true, status: 200, json: async () => [{ account_id: 900, wx_biz: 'biz-rest', decision_status: 2, decision_source: 'manual', filter_rule_id: null, updated_at: '2026-09-18T00:00:00.000Z' }] }
     }
     if (parsed.pathname.endsWith('/accounts') && options.method === 'POST') {
       const body = JSON.parse(options.body)
       return { ok: true, status: 201, json: async () => body.map((row, index) => ({ ...row, account_id: index + 900 })) }
     }
+    if (parsed.pathname.endsWith('/account_profiles') && options.method === 'GET') {
+      return { ok: true, status: 200, json: async () => [{ account_id: 900, manual_tags: ['人工标签'] }] }
+    }
     if (parsed.pathname.endsWith('/account_profiles') || parsed.pathname.endsWith('/articles') || parsed.pathname.endsWith('/hotwords')) {
-      return { ok: true, status: 201, json: async () => [] }
-    }
-    if (parsed.pathname.endsWith('/jobs')) {
-      return { ok: true, status: 201, json: async () => [{ id: 77 }] }
-    }
-    if (parsed.pathname.endsWith('/job_steps')) {
       return { ok: true, status: 201, json: async () => [] }
     }
     throw new Error(`unexpected request: ${url}`)
@@ -99,6 +95,20 @@ test('REST sink writes only the existing Supabase tables and keeps the account i
   const articleCall = calls.find(call => call.url.includes('/rest/v1/articles'))
   assert.ok(articleCall)
   assert.equal(JSON.parse(articleCall.options.body)[0].account_id, 900)
-  assert.ok(calls.some(call => call.url.includes('/rest/v1/jobs')))
+  const accountCall = calls.find(call => call.url.includes('/rest/v1/accounts') && call.options.method === 'POST')
+  assert.equal(Object.hasOwn(JSON.parse(accountCall.options.body)[0], 'decision_status'), false)
+  const profileCall = calls.find(call => call.url.includes('/rest/v1/account_profiles') && call.options.method === 'POST')
+  assert.equal(Object.hasOwn(JSON.parse(profileCall.options.body)[0], 'manual_tags'), false)
+  assert.equal(result.jobId, null)
+  assert.ok(calls.every(call => !call.url.includes('/rest/v1/jobs') && !call.url.includes('/rest/v1/job_steps')))
   assert.ok(calls.every(call => !call.url.includes('migrations')))
+})
+
+test('missing report decisions never make a source article writable', () => {
+  const writeSet = buildSupabaseWriteSet({
+    accountRows: [{ wx_biz: 'biz-missing-decision', wx_name: '账号' }],
+    articleRows: [{ article_id: 'missing-decision', wx_biz: 'biz-missing-decision', title: '未决文章' }],
+    report: { articles: { decisions: [] }, hotwords: { rows: [] } }
+  })
+  assert.equal(writeSet.articles.length, 0)
 })

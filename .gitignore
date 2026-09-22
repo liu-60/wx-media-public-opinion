@@ -3,3 +3,7 @@ data/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+reports/redfox-api-audit-20260921/
+reports/redfox-gzh-latest-20260922/
+test/
+docs/

@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import { openDatabase } from '../src/db.mjs'
-import { runPipeline, runPipelineFromWxRank } from '../src/pipeline.mjs'
+import { runPipeline, runPipelineFromWxRank, normalizeArticle } from '../src/pipeline.mjs'
+import { buildSupabaseWriteSet } from '../src/supabase-sink.mjs'
 
 test('pipeline syncs by wx_biz, screens articles, and keeps filtered traffic in hotwords', () => {
   const db = openDatabase(':memory:')
@@ -62,5 +67,62 @@ test('pipeline can collect account rows through the WxRank adapter before proces
     assert.equal(result.articles.statusCounts.SELECTED, 1)
   } finally {
     db.close()
+  }
+})
+
+test('pipeline uses one URL sn identity in its report and sink, and blocks filtered rows', () => {
+  const db = openDatabase(':memory:')
+  try {
+    const article = { wx_biz: 'biz-url-sn', title: '只在 URL 中有 sn', article_url: 'https://mp.weixin.qq.com/s?sn=url-only-sn', comment: 7 }
+    const report = runPipeline({
+      db,
+      accountRows: [{ wx_biz: 'biz-url-sn', wx_name: '普通账号', read_median: 90000 }],
+      articleRows: [article],
+      accountDecisions: { 'biz-url-sn': 2 },
+      ruleSnapshot: { source: 'supabase', loadedAt: '2026-09-18T04:30:00.000Z', rules: [] },
+      now: '2026-09-18T04:30:00.000Z'
+    })
+    assert.equal(report.articles.decisions[0].article_id, 'url-only-sn')
+    assert.equal(report.articles.decisions[0].status, 'ACCOUNT_FILTERED')
+    assert.equal(report.filterRules.source, 'supabase')
+    const writeSet = buildSupabaseWriteSet({ accountRows: [{ wx_biz: 'biz-url-sn', wx_name: '普通账号' }], articleRows: [article], report })
+    assert.equal(writeSet.articles.length, 0)
+  } finally {
+    db.close()
+  }
+})
+
+test('pipeline normalizes all comment aliases and does not select when supplied decisions omit an account', () => {
+  for (const article of [{ comment_num: 3 }, { commentNum: 3 }, { comment: 3 }]) assert.equal(normalizeArticle(article).comment_num, 3)
+  const db = openDatabase(':memory:')
+  try {
+    const report = runPipeline({
+      db,
+      accountRows: [{ wx_biz: 'biz-undecided', wx_name: '普通账号', read_median: 90000 }],
+      articleRows: [{ article_id: 'undecided', wx_biz: 'biz-undecided', title: '待确认' }],
+      accountDecisions: {},
+      ruleSnapshot: { source: 'supabase', loadedAt: '2026-09-18T04:30:00.000Z', rules: [] },
+      now: '2026-09-18T04:30:00.000Z'
+    })
+    assert.notEqual(report.articles.decisions[0].status, 'SELECTED')
+  } finally {
+    db.close()
+  }
+})
+
+test('trailing rules-from-supabase never falls back to default rules when online configuration is absent', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wx-pipeline-rules-'))
+  try {
+    const inputPath = join(directory, 'input.json')
+    writeFileSync(inputPath, JSON.stringify({ accountRows: [], articleRows: [] }), 'utf8')
+    const result = spawnSync(process.execPath, ['scripts/run-pipeline.mjs', '--input', inputPath, '--db', join(directory, 'pipeline.sqlite'), '--rules-from-supabase'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env: { ...process.env, SUPABASE_URL: '', SUPABASE_SECRET_KEY: '', SUPABASE_SERVICE_ROLE_KEY: '' }
+    })
+    assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`)
+    assert.doesNotMatch(result.stdout, /"filterRules"\s*:\s*\{\s*"source"\s*:\s*"default"/u)
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
   }
 })

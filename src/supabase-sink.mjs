@@ -1,5 +1,5 @@
-import crypto from 'node:crypto'
 import { mergeAccountRows, normalizeAccountRow, timestampToIso } from './account-sync.mjs'
+import { articleIdentity } from './article-filter.mjs'
 
 const ACCOUNT_FIELDS = Object.freeze(['wx_name', 'verify', 'description', 'read_median', 'read_max'])
 const PROFILE_FIELD_MAP = Object.freeze({
@@ -93,33 +93,11 @@ function first(row, ...keys) {
 }
 
 function articleId(row) {
-  const explicit = first(row, 'article_id', 'articleId', 'art_id', 'id', 'article_sn', 'articleSn')
-  if (hasValue(explicit) && text(explicit)) return text(explicit)
-  const url = text(first(row, 'article_url', 'articleUrl', 'art_url', 'url', 'link'))
-  const title = text(first(row, 'title', 'article_title', 'art_title', 'name'))
-  const publishTime = text(first(row, 'publish_time', 'publishTime', 'pub_time', 'publish_date', 'created_at', 'date'))
-  const wxBiz = text(first(row, 'wx_biz', 'wxBiz', '__biz', 'biz'))
-  if (url) {
-    try {
-      const sn = new URL(url).searchParams.get('sn')
-      if (sn) return sn
-    } catch {}
-  }
-  const seed = [url, title, publishTime, wxBiz].join('\n')
-  return `article_${crypto.createHash('sha256').update(seed, 'utf8').digest('hex').slice(0, 24)}`
+  return articleIdentity(row).articleId
 }
 
 function articleSn(row) {
-  const explicit = first(row, 'article_sn', 'articleSn', 'art_id', 'article_id', 'articleId', 'id')
-  if (hasValue(explicit) && text(explicit)) return text(explicit)
-  const url = text(first(row, 'article_url', 'articleUrl', 'art_url', 'url', 'link'))
-  if (url) {
-    try {
-      const sn = new URL(url).searchParams.get('sn')
-      if (sn) return sn
-    } catch {}
-  }
-  return articleId(row)
+  return articleIdentity(row).articleSn
 }
 
 function articleIndex(row, url) {
@@ -197,16 +175,6 @@ function decisionMap(report) {
   return new Map((report?.articles?.decisions || []).map(item => [text(item.article_id), item]))
 }
 
-function compactStats(report) {
-  return {
-    raw_count: report?.articles?.rawCount || 0,
-    selected_count: report?.articles?.statusCounts?.SELECTED || 0,
-    filtered_count: report?.articles?.statusCounts?.ACCOUNT_FILTERED || 0,
-    unmatched_count: report?.articles?.statusCounts?.ACCOUNT_UNMATCHED || 0,
-    hotword_candidate_count: report?.hotwords?.count || 0
-  }
-}
-
 export function buildSupabaseWriteSet({
   accountRows = [],
   articleRows = [],
@@ -238,7 +206,7 @@ export function buildSupabaseWriteSet({
 
   const decisions = decisionMap(report)
   const articles = normalizedArticles
-    .filter(article => !decisions.has(article.article_id) || decisions.get(article.article_id)?.status === 'SELECTED')
+    .filter(article => decisions.get(article.article_id)?.status === 'SELECTED')
     .map(article => cleanArticleForSupabase(article, null))
 
   const hotwords = (report?.hotwords?.rows || [])
@@ -253,53 +221,11 @@ export function buildSupabaseWriteSet({
     }))
     .filter(row => row.hotword && row.stat_date && row.article_count >= 2)
 
-  const job = {
-    job_type: 'wx_media_public_opinion',
-    status: 'success',
-    current_step: 'supabase_persist',
-    params: {
-      source,
-      run_date: dateOnly(runDate, now),
-      no_migration: true,
-      no_old_data_migration: true,
-      stats: compactStats(report),
-      account_input: {
-        raw_count: merged.rawCount,
-        unique_count: merged.uniqueCount,
-        duplicate_count: merged.duplicateCount,
-        invalid_count: merged.invalidCount
-      },
-      filter_audit: (report?.articles?.decisions || [])
-        .filter(item => item.status !== 'SELECTED')
-        .map(item => ({
-          article_id: item.article_id,
-          status: item.status,
-          filter_rule_id: item.filterRuleId || '',
-          reason: item.reason || '',
-          account_matched: Boolean(item.accountMatched)
-        }))
-    },
-    success_count: accounts.length + articles.length + hotwords.length,
-    fail_count: 0,
-    started_at: collectedAt,
-    finished_at: collectedAt,
-    created_at: collectedAt,
-    updated_at: collectedAt
-  }
-  const steps = [
-    { step_name: 'account_sync', step_order: 1, status: 'success', processed_count: merged.rawCount, success_count: accounts.length, fail_count: merged.invalidCount },
-    { step_name: 'article_coarse_filter', step_order: 2, status: 'success', processed_count: normalizedArticles.length, success_count: articles.length, fail_count: 0 },
-    { step_name: 'hotword_aggregate', step_order: 3, status: 'success', processed_count: report?.hotwords?.rows?.length || 0, success_count: hotwords.length, fail_count: 0 },
-    { step_name: 'supabase_persist', step_order: 4, status: 'success', processed_count: accounts.length + articles.length + hotwords.length, success_count: accounts.length + articles.length + hotwords.length, fail_count: 0 }
-  ].map(step => ({ ...step, cursor: {}, error: '', started_at: collectedAt, finished_at: collectedAt, created_at: collectedAt, updated_at: collectedAt }))
-
   return {
     migrationApplied: false,
     accounts,
     articles,
     hotwords,
-    job,
-    steps,
     metadata: { source, runDate: dateOnly(runDate, now), now: collectedAt }
   }
 }
@@ -395,9 +321,6 @@ export function createSupabaseRestSink({ url, key, fetchImpl = globalThis.fetch 
         const payload = { wx_biz: item.wx_biz }
         for (const field of ACCOUNT_FIELDS) payload[field] = hasValue(item.account[field]) ? item.account[field] : existing?.[field]
         payload.updated_at = item.account.updated_at || existing?.updated_at
-        for (const field of ['decision_status', 'decision_source', 'filter_rule_id']) {
-          if (hasValue(existing?.[field])) payload[field] = existing[field]
-        }
         return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
       })
       const upsertedAccounts = await postBatches('accounts', accountPayloads, '?on_conflict=wx_biz')
@@ -429,16 +352,13 @@ export function createSupabaseRestSink({ url, key, fetchImpl = globalThis.fetch 
       await postBatches('articles', articles, '?on_conflict=account_id,article_sn')
       await postBatches('hotwords', writeSet.hotwords, '?on_conflict=hotword,stat_date')
 
-      const jobRows = await postBatches('jobs', [writeSet.job])
-      const jobId = jobRows[0]?.id
-      if (jobId) await postBatches('job_steps', writeSet.steps.map(step => ({ ...step, job_id: jobId })))
-
       return {
         accountCount: writeSet.accounts.length,
         profileCount: profiles.length,
         articleCount: articles.length,
         hotwordCount: writeSet.hotwords.length,
-        jobId: jobId ?? null
+        jobId: null,
+        jobTracking: { available: false, code: 'CAPABILITY_UNAVAILABLE', reason: 'jobs and job_steps are not part of the configured six-table schema' }
       }
     }
   }

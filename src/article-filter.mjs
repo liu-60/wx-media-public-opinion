@@ -1,4 +1,5 @@
 import configFile from '../config/default.json' with { type: 'json' }
+import crypto from 'node:crypto'
 
 const configured = configFile.account || configFile
 
@@ -18,6 +19,123 @@ function text(value) {
 function findTerm(value, terms = []) {
   const source = text(value)
   return terms.find(term => source.includes(text(term))) || ''
+}
+
+function firstValue(row, ...keys) {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(row || {}, key) && row[key] !== undefined && row[key] !== null && text(row[key])) return row[key]
+  }
+  return ''
+}
+
+function articleSnFromUrl(value) {
+  try { return text(new URL(text(value)).searchParams.get('sn')) } catch { return '' }
+}
+
+export function articleIdentity(row = {}) {
+  const explicit = text(firstValue(row, 'article_id', 'articleId', 'art_id', 'id', 'article_sn', 'articleSn'))
+  if (explicit) return { articleId: explicit, articleSn: explicit, source: 'explicit' }
+  const url = text(firstValue(row, 'article_url', 'articleUrl', 'art_url', 'url', 'link'))
+  const urlSn = articleSnFromUrl(url)
+  if (urlSn) return { articleId: urlSn, articleSn: urlSn, source: 'url_sn' }
+  const seed = [
+    url,
+    text(firstValue(row, 'title', 'article_title', 'art_title', 'name')),
+    text(firstValue(row, 'publish_time', 'publishTime', 'pub_time', 'publish_date', 'published_at', 'created_at', 'date')),
+    text(firstValue(row, 'wx_biz', 'wxBiz', '__biz', 'biz'))
+  ].join('\n')
+  const fallback = `article_${crypto.createHash('sha256').update(seed, 'utf8').digest('hex').slice(0, 24)}`
+  return { articleId: fallback, articleSn: fallback, source: 'fallback' }
+}
+
+const RULE_FIELDS = Object.freeze({
+  account: new Set(['name', 'verification', 'description', 'read_median']),
+  article: new Set(['title', 'read_count', 'like_count', 'comment_count'])
+})
+const RULE_OPERATORS = new Set(['eq', 'contains', 'not_contains', 'gt', 'gte', 'lt', 'lte'])
+
+function fieldValue(row, scope, field) {
+  if (scope === 'account') return {
+    name: firstValue(row, 'wx_name', 'name'),
+    verification: firstValue(row, 'verify', 'verification'),
+    description: firstValue(row, 'description'),
+    read_median: firstValue(row, 'read_median')
+  }[field]
+  return {
+    title: firstValue(row, 'title'),
+    read_count: firstValue(row, 'read_num', 'readNum', 'read_count'),
+    like_count: firstValue(row, 'like_num', 'likeNum', 'like_count'),
+    comment_count: firstValue(row, 'comment_num', 'commentNum', 'comment', 'comment_count')
+  }[field]
+}
+
+function numeric(value) {
+  const source = text(value)
+  if (!source) return null
+  const parsed = Number(source.replaceAll(',', ''))
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function ruleMatch(value, rule) {
+  const operator = text(rule.operator)
+  const source = text(value)
+  if (!source) return false
+  if (operator === 'contains' || operator === 'not_contains') {
+    const matched = source.includes(text(rule.value_text))
+    return operator === 'not_contains' ? !matched : matched
+  }
+  if (operator === 'eq' && rule.value_text !== null && rule.value_text !== undefined) return source === text(rule.value_text)
+  const left = numeric(value)
+  const right = numeric(rule.value_number)
+  if (left === null || right === null) return false
+  return ({ eq: left === right, gt: left > right, gte: left >= right, lt: left < right, lte: left <= right })[operator] || false
+}
+
+export function normalizePersistedRules(rows = []) {
+  if (!Array.isArray(rows)) throw new TypeError('persisted rules must be an array')
+  return rows.map(row => {
+    const id = row?.id ?? row?.rule_id
+    const scope = text(row?.scope)
+    const field_name = text(row?.field_name)
+    const operator = text(row?.operator)
+    if (id === undefined || id === null || text(id) === '') throw new TypeError('persisted rule id is required')
+    if (!RULE_FIELDS[scope]?.has(field_name)) throw new TypeError(`unsupported persisted rule field: ${scope}.${field_name}`)
+    if (!RULE_OPERATORS.has(operator)) throw new TypeError(`unsupported persisted rule operator: ${operator}`)
+    const value_text = row.value_text ?? null
+    const value_number = row.value_number ?? null
+    if ((operator === 'contains' || operator === 'not_contains') && !text(value_text)) throw new TypeError(`persisted rule ${id} requires value_text`)
+    if (!['contains', 'not_contains'].includes(operator) && value_text === null && numeric(value_number) === null) throw new TypeError(`persisted rule ${id} requires a value`)
+    return { id, scope, field_name, operator, value_text, value_number, enabled: row.enabled !== false }
+  }).sort((left, right) => String(left.id).localeCompare(String(right.id), 'en', { numeric: true }))
+}
+
+export function evaluatePersistedRules(account = {}, article = {}, rules = []) {
+  const reasons = []
+  for (const rule of normalizePersistedRules(rules)) {
+    if (!rule.enabled) continue
+    const target = rule.scope === 'account' ? account : article
+    const matchedValue = fieldValue(target, rule.scope, rule.field_name)
+    if (!ruleMatch(matchedValue, rule)) continue
+    reasons.push({
+      ruleId: rule.id,
+      field: `${rule.scope}.${rule.field_name}`,
+      matchedValue,
+      reason: `${rule.scope}.${rule.field_name} ${rule.operator} configured value`
+    })
+  }
+  return { filtered: reasons.length > 0, ruleId: reasons[0]?.ruleId || '', reasons }
+}
+
+export function createRuleSnapshot(rules = [], { source = 'default', loadedAt = new Date().toISOString() } = {}) {
+  const normalized = normalizePersistedRules(rules)
+  const canonical = JSON.stringify(normalized)
+  return {
+    source,
+    loadedAt,
+    count: normalized.length,
+    hash: crypto.createHash('sha256').update(canonical, 'utf8').digest('hex'),
+    rules: normalized
+  }
 }
 
 export function evaluateAccountRules(account, config = DEFAULT_FILTER_CONFIG) {
@@ -47,8 +165,8 @@ export function evaluateAccountRules(account, config = DEFAULT_FILTER_CONFIG) {
   })
 
   const median = account.read_median
-  if (median !== null && median !== undefined && median !== '') {
-    const numericMedian = Number(median)
+  if (text(median)) {
+    const numericMedian = Number(String(median).replaceAll(',', ''))
     if (Number.isFinite(numericMedian) && numericMedian < Number(config.readMedianFilterFloor)) reasons.push({
       ruleId: config.readMedianFilterRuleId,
       field: 'read_median',
@@ -63,7 +181,7 @@ export function evaluateAccountRules(account, config = DEFAULT_FILTER_CONFIG) {
   }
 }
 
-export function coarseFilterArticle(article = {}, account, config = DEFAULT_FILTER_CONFIG) {
+export function coarseFilterArticle(article = {}, account, config = DEFAULT_FILTER_CONFIG, persistedRules = undefined) {
   if (!account) {
     return {
       status: 'ACCOUNT_UNMATCHED',
@@ -73,7 +191,37 @@ export function coarseFilterArticle(article = {}, account, config = DEFAULT_FILT
       reasons: []
     }
   }
-  const evaluated = evaluateAccountRules(account, config)
+  if (Number(account.decision_status) === 2) {
+    return {
+      status: 'ACCOUNT_FILTERED',
+      filterRuleId: '',
+      reason: 'decision status=2 filters this account',
+      accountMatched: true,
+      reasons: [{ ruleId: '', field: 'decision_status', matchedValue: 2, reason: 'decision status=2 filters this account' }]
+    }
+  }
+  if (account.decision_required && Number(account.decision_status) !== 1) {
+    return {
+      status: 'ACCOUNT_UNDECIDED',
+      filterRuleId: '',
+      reason: 'account decision is missing or not approved',
+      accountMatched: true,
+      reasons: [{ ruleId: '', field: 'decision_status', matchedValue: account.decision_status ?? null, reason: 'account decision is missing or not approved' }]
+    }
+  }
+  if (persistedRules !== undefined) {
+    const persisted = evaluatePersistedRules(account, article, persistedRules)
+    if (persisted.filtered) {
+      return {
+        status: 'ACCOUNT_FILTERED',
+        filterRuleId: persisted.ruleId,
+        reason: persisted.reasons.map(item => `${item.ruleId}:${item.reason}`).join('; '),
+        accountMatched: true,
+        reasons: persisted.reasons
+      }
+    }
+  }
+  const evaluated = persistedRules === undefined ? evaluateAccountRules(account, config) : { filtered: false, ruleId: '', reasons: [] }
   if (evaluated.filtered) {
     return {
       status: 'ACCOUNT_FILTERED',
