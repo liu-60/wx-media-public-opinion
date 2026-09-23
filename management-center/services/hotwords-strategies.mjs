@@ -220,8 +220,7 @@ function normalizeExpectedSnapshots(expected, ids) {
 
 function parsePage(input = {}) {
   const page = integer(input.page ?? 1, { min: 1, max: 1_000_000, code: 'INVALID_PAGE' })
-  const requestedSize = integer(input.pageSize ?? 50, { min: 1, max: 100, code: 'INVALID_PAGE_SIZE' })
-  const pageSize = [20, 50, 100].includes(requestedSize) ? requestedSize : invalid('INVALID_PAGE_SIZE', 'pageSize仅支持20、50、100')
+  const pageSize = integer(input.pageSize ?? 50, { min: 1, max: 500, code: 'INVALID_PAGE_SIZE' })
   return { page, pageSize, offset: (page - 1) * pageSize }
 }
 

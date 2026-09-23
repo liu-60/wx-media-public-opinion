@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { REDFOX_GZH_SOURCES } from '../src/collector-adapters/redfox.mjs';
 
 const root = path.resolve(
   process.env.REDFOX_GZH_OUTPUT ||
@@ -19,39 +20,10 @@ if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
 fs.mkdirSync(rawDir, { recursive: true });
 fs.mkdirSync(normalizedDir, { recursive: true });
 
-const sources = [
-  {
-    no: 'ZIGAGYYT',
-    name: '公众号10W+文章推荐',
-    docUrl: 'https://redfox.hk/apis/gongzhonghao/ZIGAGYYT',
-    endpoint: 'https://redfox.hk/story/api/cozeSkill/getTenWReadingRank',
-    bodyForDate: (date) => ({ type: '知识百科', startDate: date, endDate: date }),
-    price: 0.04,
-    type: 'article-rank',
-  },
-  {
-    no: 'OFFSPQ0U',
-    name: '公众号原创爆款文章推荐',
-    docUrl: 'https://redfox.hk/apis/gongzhonghao/OFFSPQ0U',
-    endpoint: 'https://redfox.hk/story/api/cozeSkill/getOriginalRank',
-    bodyForDate: (date) => ({ type: '知识百科', startDate: date, endDate: date }),
-    price: 0.04,
-    type: 'article-rank',
-  },
-  {
-    no: 'API_1789637464311',
-    name: '公众号头条增长榜',
-    docUrl: 'https://redfox.hk/apis/gongzhonghao/API_1789637464311',
-    endpoint: 'https://redfox.hk/story/api/gzh/heima/rankList',
-    bodyForDate: (date) => ({
-      page: 1,
-      rank_date: `${date} 00:00:00`,
-      author_type: '人文资讯',
-    }),
-    price: 0.04,
-    type: 'account-growth-rank',
-  },
-];
+const sources = REDFOX_GZH_SOURCES.map((source) => ({
+  ...source,
+  docUrl: `https://redfox.hk/apis/gongzhonghao/${source.no}`,
+}));
 
 function dateInSingapore() {
   return new Intl.DateTimeFormat('en-CA', {

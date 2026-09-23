@@ -9,7 +9,12 @@
     "management-center": "node management-center/server.mjs",
     "build:management-center": "node scripts/build-management-center.mjs",
     "pipeline": "node scripts/run-pipeline.mjs",
-    "snapshot": "node scripts/run-wxrank-snapshot.mjs"
+    "snapshot": "node scripts/run-wxrank-snapshot.mjs",
+    "collection:register": "node scripts/register-collectors.mjs",
+    "collection:run": "node scripts/run-workflow.mjs",
+    "collection:worker": "node scripts/run-collector-worker.mjs",
+    "collection:cleanup": "node scripts/cleanup-collection-artifacts.mjs",
+    "collection:orchestration-cleanup": "node scripts/maintenance/cleanup-collection-orchestration.mjs"
   },
   "engines": {
     "node": ">=22"

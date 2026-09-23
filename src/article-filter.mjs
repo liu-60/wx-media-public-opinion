@@ -50,9 +50,14 @@ export function articleIdentity(row = {}) {
 
 const RULE_FIELDS = Object.freeze({
   account: new Set(['name', 'verification', 'description', 'read_median']),
-  article: new Set(['title', 'read_count', 'like_count', 'comment_count'])
+  article: new Set(['title', 'read_count', 'like_count', 'comment_count']),
+  hotword: new Set(['hotword'])
 })
-const RULE_OPERATORS = new Set(['eq', 'contains', 'not_contains', 'gt', 'gte', 'lt', 'lte'])
+const RULE_OPERATORS = Object.freeze({
+  account: new Set(['eq', 'contains', 'not_contains', 'gt', 'gte', 'lt', 'lte']),
+  article: new Set(['eq', 'contains', 'not_contains', 'gt', 'gte', 'lt', 'lte']),
+  hotword: new Set(['exact', 'contains'])
+})
 
 function fieldValue(row, scope, field) {
   if (scope === 'account') return {
@@ -84,7 +89,7 @@ function ruleMatch(value, rule) {
     const matched = source.includes(text(rule.value_text))
     return operator === 'not_contains' ? !matched : matched
   }
-  if (operator === 'eq' && rule.value_text !== null && rule.value_text !== undefined) return source === text(rule.value_text)
+  if ((operator === 'eq' || operator === 'exact') && rule.value_text !== null && rule.value_text !== undefined) return source === text(rule.value_text)
   const left = numeric(value)
   const right = numeric(rule.value_number)
   if (left === null || right === null) return false
@@ -100,11 +105,12 @@ export function normalizePersistedRules(rows = []) {
     const operator = text(row?.operator)
     if (id === undefined || id === null || text(id) === '') throw new TypeError('persisted rule id is required')
     if (!RULE_FIELDS[scope]?.has(field_name)) throw new TypeError(`unsupported persisted rule field: ${scope}.${field_name}`)
-    if (!RULE_OPERATORS.has(operator)) throw new TypeError(`unsupported persisted rule operator: ${operator}`)
+    if (!RULE_OPERATORS[scope]?.has(operator)) throw new TypeError(`unsupported persisted rule operator: ${operator}`)
     const value_text = row.value_text ?? null
     const value_number = row.value_number ?? null
     if ((operator === 'contains' || operator === 'not_contains') && !text(value_text)) throw new TypeError(`persisted rule ${id} requires value_text`)
-    if (!['contains', 'not_contains'].includes(operator) && value_text === null && numeric(value_number) === null) throw new TypeError(`persisted rule ${id} requires a value`)
+    if (scope === 'hotword' && (value_number !== null || !text(value_text))) throw new TypeError(`persisted hotword rule ${id} requires value_text`)
+    if (!['contains', 'not_contains', 'exact'].includes(operator) && value_text === null && numeric(value_number) === null) throw new TypeError(`persisted rule ${id} requires a value`)
     return { id, scope, field_name, operator, value_text, value_number, enabled: row.enabled !== false }
   }).sort((left, right) => String(left.id).localeCompare(String(right.id), 'en', { numeric: true }))
 }
@@ -112,7 +118,7 @@ export function normalizePersistedRules(rows = []) {
 export function evaluatePersistedRules(account = {}, article = {}, rules = []) {
   const reasons = []
   for (const rule of normalizePersistedRules(rules)) {
-    if (!rule.enabled) continue
+    if (!rule.enabled || rule.scope === 'hotword') continue
     const target = rule.scope === 'account' ? account : article
     const matchedValue = fieldValue(target, rule.scope, rule.field_name)
     if (!ruleMatch(matchedValue, rule)) continue
@@ -240,7 +246,14 @@ export function coarseFilterArticle(article = {}, account, config = DEFAULT_FILT
       reasons: []
     }
   }
-  return { status: 'SELECTED', filterRuleId: '', reason: '', accountMatched: true, reasons: [] }
+  return {
+    status: 'SELECTED',
+    filterRuleId: '',
+    reason: account.decision_required && Number(account.decision_status) === 1 ? 'trusted_account' : '',
+    decisionSource: account.decision_required && Number(account.decision_status) === 1 ? 'trusted_account' : 'rules',
+    accountMatched: true,
+    reasons: []
+  }
 }
 
 export function persistFilterAudit(db, articleId, accountId, result, now) {

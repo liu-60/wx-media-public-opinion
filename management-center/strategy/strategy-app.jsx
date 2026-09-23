@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import dayjs from 'dayjs'
 import {
@@ -187,7 +187,7 @@ function AvatarTargets({ targets, hiddenCount, targetUnit }) {
   </Space>
 }
 
-function StrategyCard({ item, config, accountOptions, canWrite, onEdit, onDelete, deleting }) {
+const StrategyCard = memo(function StrategyCard({ item, config, accountOptions, canWrite, onEdit, onDelete, deleting }) {
   const model = buildStrategyCardModel(item, config, accountOptions)
   const executeReason = item.capability?.reason || '采集执行器尚未接入，当前只能保存配置'
   return <Card
@@ -226,18 +226,28 @@ function StrategyCard({ item, config, accountOptions, canWrite, onEdit, onDelete
       </Space></div>
     </Space>
   </Card>
-}
+})
 
-function TargetSelector({ kind, field, label, hint, selected, sourceTargets, options, loading, onSearch, onChange }) {
+const TargetSelector = memo(function TargetSelector({ kind, field, label, hint, selected, sourceTargets, options, loading, onSearch, onChange }) {
   const isAccount = kind === 'account'
-  const allowedKeys = new Set((sourceTargets || []).map(target => optionValue(target, kind === 'account' ? 'account' : kind)))
-  const filteredOptions = field === 'activeTargets' && sourceTargets ? options.filter(option => allowedKeys.has(String(option.value))) : options
-  const selectedOptions = selected.map(target => {
-    const value = optionValue(target, kind === 'account' ? 'account' : kind)
-    return options.find(option => String(option.value) === value) || (isAccount ? accountOption({ id: target.account_id, key: target.wx_biz, name: target.wx_name, avatar: target.avatar, averageReading: target.read_avg }) : typeOption(String(target)))
-  })
-  const mergedOptions = [...selectedOptions, ...filteredOptions].filter((option, index, all) => all.findIndex(item => String(item.value) === String(option.value)) === index)
-  const optionMap = new Map(mergedOptions.map(option => [String(option.value), option]))
+  const selectedValues = useMemo(() => selected.map(target => optionValue(target, isAccount ? 'account' : kind)), [isAccount, kind, selected])
+  const optionsByValue = useMemo(() => new Map(options.map(option => [String(option.value), option])), [options])
+  const allowedKeys = useMemo(() => new Set((sourceTargets || []).map(target => optionValue(target, isAccount ? 'account' : kind))), [isAccount, kind, sourceTargets])
+  const mergedOptions = useMemo(() => {
+    const merged = new Map()
+    for (const target of selected) {
+      const value = optionValue(target, isAccount ? 'account' : kind)
+      const option = optionsByValue.get(value) || (isAccount ? accountOption({ id: target.account_id, key: target.wx_biz, name: target.wx_name, avatar: target.avatar, averageReading: target.read_avg }) : typeOption(String(target)))
+      merged.set(String(option.value), option)
+    }
+    for (const option of options) {
+      if (field !== 'activeTargets' || !sourceTargets || allowedKeys.has(String(option.value))) {
+        if (!merged.has(String(option.value))) merged.set(String(option.value), option)
+      }
+    }
+    return [...merged.values()]
+  }, [allowedKeys, field, isAccount, kind, options, optionsByValue, selected, sourceTargets])
+  const optionMap = useMemo(() => new Map(mergedOptions.map(option => [String(option.value), option])), [mergedOptions])
   return <Form.Item label={<Space size={6}><span>{label}</span><Typography.Text type="secondary">{hint}</Typography.Text></Space>}>
       <Select
         getPopupContainer={getBodyPopupContainer}
@@ -249,7 +259,7 @@ function TargetSelector({ kind, field, label, hint, selected, sourceTargets, opt
       placeholder={isAccount ? '搜索公众号名称' : '请选择'}
       maxTagCount="responsive"
       maxTagPlaceholder={omittedValues => <Tooltip getPopupContainer={getBodyPopupContainer} title={`还有 ${omittedValues.length} 个已选${isAccount ? '公众号' : '对象'}`}>+{omittedValues.length}</Tooltip>}
-      value={selected.map(target => optionValue(target, kind === 'account' ? 'account' : kind))}
+      value={selectedValues}
       options={mergedOptions}
       onSearch={onSearch}
       onChange={values => onChange(values.map(value => optionMap.get(String(value))?.target ?? value))}
@@ -257,9 +267,9 @@ function TargetSelector({ kind, field, label, hint, selected, sourceTargets, opt
       tagRender={props => isAccount ? <Tag bordered={false} icon={avatarFor(optionMap.get(String(props.value)) || { name: props.label }, 'small')}>{props.label}</Tag> : <Tag bordered={false}>{props.label}</Tag>}
     />
   </Form.Item>
-}
+})
 
-function StrategyForm({ item, isCreate, accountOptions, canWrite, onClose, onSaved }) {
+function StrategyForm({ item, isCreate, canWrite, onClose, onSaved }) {
   const [form] = Form.useForm()
   const { message: appMessage } = AntApp.useApp()
   const [draft, setDraft] = useState(() => formDraft(item))
@@ -270,7 +280,7 @@ function StrategyForm({ item, isCreate, accountOptions, canWrite, onClose, onSav
   const [saving, setSaving] = useState(false)
   const config = getStrategyTypeConfig(draft.requestType)
 
-  const loadOptions = async (kind, search, token) => {
+  const loadOptions = useCallback(async (kind, search, token) => {
     if (!STRATEGY_ENDPOINTS[kind]) return
     const generation = searchGenerations.current.get(kind)
     if (!generation || !generation.isCurrent(token)) return
@@ -285,9 +295,9 @@ function StrategyForm({ item, isCreate, accountOptions, canWrite, onClose, onSav
     } finally {
       if (generation.isCurrent(token)) setOptionLoading(state => ({ ...state, [kind]: false }))
     }
-  }
+  }, [appMessage])
 
-  const scheduleSearch = (kind, value) => {
+  const scheduleSearch = useCallback((kind, value) => {
     const oldTimer = searchTimers.current.get(kind)
     if (oldTimer) window.clearTimeout(oldTimer)
     const generation = searchGenerations.current.get(kind) || createRequestGeneration()
@@ -295,14 +305,14 @@ function StrategyForm({ item, isCreate, accountOptions, canWrite, onClose, onSav
     const token = generation.next()
     const timer = window.setTimeout(() => loadOptions(kind, value, token), 250)
     searchTimers.current.set(kind, timer)
-  }
+  }, [loadOptions])
 
   const selectorOptions = useMemo(() => {
     if (config.targetSelector === 'wxType') return WX_TYPE_OPTIONS.map(typeOption)
     return remoteOptions[config.targetSelector] || []
   }, [config.targetSelector, remoteOptions])
 
-  const handleValuesChange = (_, values) => {
+  const handleValuesChange = useCallback((_, values) => {
     setDraft(current => ({
       ...current,
       date: values.date?.format('YYYY-MM-DD') || '',
@@ -311,20 +321,24 @@ function StrategyForm({ item, isCreate, accountOptions, canWrite, onClose, onSav
       maxRead: values.maxRead ?? null,
       cursor: values.cursor ?? 0
     }))
-  }
+  }, [])
 
-  const updateSourceTargets = targets => {
+  const updateSourceTargets = useCallback(targets => {
     setDraft(current => ({ ...current, sourceTargets: targets, activeTargets: filterActiveTargets(current.requestType, targets, current.activeTargets) }))
-  }
+  }, [])
 
-  const updateActiveTargets = targets => {
+  const updateActiveTargets = useCallback(targets => {
     setDraft(current => ({ ...current, activeTargets: filterActiveTargets(current.requestType, current.sourceTargets, targets) }))
-  }
+  }, [])
 
-  const changeType = requestType => {
+  const changeType = useCallback(requestType => {
     setDraft(current => ({ ...current, requestType, sourceTargets: [], activeTargets: [], date: '', month: '' }))
     form.setFieldsValue({ requestType, sourceTargets: [], activeTargets: [], date: null, month: null })
-  }
+  }, [form])
+
+  const searchTargets = useCallback(value => {
+    if (config.targetSelector) scheduleSearch(config.targetSelector, value)
+  }, [config.targetSelector, scheduleSearch])
 
   const submit = async () => {
     if (!canWrite) {
@@ -350,7 +364,7 @@ function StrategyForm({ item, isCreate, accountOptions, canWrite, onClose, onSav
     }
   }
 
-  const completed = (Array.isArray(draft.completedItems) ? draft.completedItems : []).map((value, index) => completedItemViewModel(value, index))
+  const completed = useMemo(() => (Array.isArray(draft.completedItems) ? draft.completedItems : []).map((value, index) => completedItemViewModel(value, index)), [draft.completedItems])
   return <Form
     key={`${isCreate ? 'create' : 'edit'}-${draft.id || 'new'}`}
     form={form}
@@ -366,8 +380,8 @@ function StrategyForm({ item, isCreate, accountOptions, canWrite, onClose, onSav
     </Form.Item>
     {config.targetSelector ? <>
       <Divider orientation="left" plain>目标范围</Divider>
-      <TargetSelector kind={config.targetSelector} field="sourceTargets" label={config.sourceLabel} hint="可搜索、全选或清空" selected={draft.sourceTargets} sourceTargets={null} options={selectorOptions} loading={optionLoading[config.targetSelector] || false} onSearch={value => scheduleSearch(config.targetSelector, value)} onChange={updateSourceTargets} />
-      <TargetSelector kind={config.targetSelector} field="activeTargets" label={config.activeLabel} hint="仅能从目标范围中选择" selected={draft.activeTargets} sourceTargets={draft.sourceTargets} options={selectorOptions} loading={optionLoading[config.targetSelector] || false} onSearch={value => scheduleSearch(config.targetSelector, value)} onChange={updateActiveTargets} />
+      <TargetSelector kind={config.targetSelector} field="sourceTargets" label={config.sourceLabel} hint="可搜索、全选或清空" selected={draft.sourceTargets} sourceTargets={null} options={selectorOptions} loading={optionLoading[config.targetSelector] || false} onSearch={searchTargets} onChange={updateSourceTargets} />
+      <TargetSelector kind={config.targetSelector} field="activeTargets" label={config.activeLabel} hint="仅能从目标范围中选择" selected={draft.activeTargets} sourceTargets={draft.sourceTargets} options={selectorOptions} loading={optionLoading[config.targetSelector] || false} onSearch={searchTargets} onChange={updateActiveTargets} />
     </> : <Alert type="info" showIcon message="当前采集方式按时间条件请求，无需选择目标。" />}
     <Divider orientation="left" plain>请求条件</Divider>
     {config.dateField === 'date' ? <Form.Item label="采集日期" name="date"><DatePicker getPopupContainer={getBodyPopupContainer} style={{ width: '100%' }} /></Form.Item> : null}
@@ -395,12 +409,6 @@ function StrategyForm({ item, isCreate, accountOptions, canWrite, onClose, onSav
 }
 
 function StrategyDrawer({ editor, canWrite, onClose, onSaved }) {
-  const [accountOptions, setAccountOptions] = useState(editor.accountOptions || new Map())
-  const [loading, setLoading] = useState(Boolean(editor.loading))
-  useEffect(() => {
-    setAccountOptions(editor.accountOptions || new Map())
-    setLoading(Boolean(editor.loading))
-  }, [editor])
   return <Drawer
     title={<Space>{editor.isCreate ? <PlusOutlined /> : <SettingOutlined />}<span>{editor.isCreate ? '新建采集策略' : editor.loading ? '编辑采集策略' : `编辑采集策略 #${editor.item?.id}`}</span></Space>}
     open={editor.open}
@@ -411,26 +419,28 @@ function StrategyDrawer({ editor, canWrite, onClose, onSaved }) {
     footer={<Space style={{ width: '100%', justifyContent: 'flex-end' }}><Button onClick={onClose}>取消</Button><Button type="primary" onClick={() => document.querySelector('.strategy-antd-form button[type="submit"]')?.click()} disabled={!canWrite}>保存配置</Button></Space>}
     className="strategy-antd-drawer"
   >
-    {loading ? <Skeleton active paragraph={{ rows: 10 }} /> : <StrategyForm item={editor.item} isCreate={editor.isCreate} accountOptions={accountOptions} canWrite={canWrite} onClose={onClose} onSaved={onSaved} />}
+    {editor.loading ? <Skeleton active paragraph={{ rows: 10 }} /> : <StrategyForm item={editor.item} isCreate={editor.isCreate} canWrite={canWrite} onClose={onClose} onSaved={onSaved} />}
   </Drawer>
 }
 
-export function StrategyPage({ canWrite, refreshKey = 0 }) {
+export const StrategyPage = memo(function StrategyPage({ canWrite, refreshKey = 0 }) {
   const { message: appMessage } = AntApp.useApp()
+  const appMessageRef = useRef(appMessage)
+  appMessageRef.current = appMessage
   const [items, setItems] = useState([])
   const [accountOptions, setAccountOptions] = useState(new Map())
   const [listState, setListState] = useState({ loading: true, error: null })
-  const [editor, setEditor] = useState({ open: false, isCreate: false, item: null, accountOptions: new Map(), loading: false })
+  const [editor, setEditor] = useState({ open: false, isCreate: false, item: null, loading: false })
   const [deletingId, setDeletingId] = useState(null)
 
-  const loadAccountsByIds = async ids => {
+  const loadAccountsByIds = useCallback(async ids => {
     const batches = strategyAccountIdBatches(ids)
     if (!batches.length) return new Map()
     const results = await Promise.all(batches.map(batch => api.get(`${STRATEGY_ENDPOINTS.account}?ids=${batch.join(',')}&page=1&pageSize=100`, { key: `strategy-options:accounts:ids:${batch.join(',')}`, cache: true })))
     return new Map(results.flatMap(result => result.items || []).map(item => [String(item.id), item]))
-  }
+  }, [])
 
-  const loadStrategies = async () => {
+  const loadStrategies = useCallback(async () => {
     setListState({ loading: true, error: null })
     try {
       const result = await api.get('/api/strategies?page=1&pageSize=100', { key: 'strategies:list', cache: false })
@@ -441,39 +451,40 @@ export function StrategyPage({ canWrite, refreshKey = 0 }) {
     } catch (error) {
       setListState({ loading: false, error: errorMessage(error) })
     }
-  }
+  }, [loadAccountsByIds])
 
-  const openCreate = () => setEditor({ open: true, isCreate: true, item: null, accountOptions: new Map(), loading: false })
+  const openCreate = useCallback(() => setEditor({ open: true, isCreate: true, item: null, loading: false }), [])
 
-  const openEdit = async id => {
-    setEditor({ open: true, isCreate: false, item: null, accountOptions: new Map(), loading: true })
+  const openEdit = useCallback(async id => {
+    const cachedItem = items.find(item => String(item.id) === String(id))
+    if (cachedItem) {
+      setEditor({ open: true, isCreate: false, item: cachedItem, loading: false })
+      return
+    }
+    setEditor({ open: true, isCreate: false, item: null, loading: true })
     try {
       const item = (await api.get(`/api/strategies/${encodeURIComponent(id)}`, { key: `strategy:${id}`, cache: false })).item
-      const ids = [...(item.source_targets || []), ...(item.active_targets || [])].map(target => target.account_id).filter(Boolean)
-      const options = getStrategyTypeConfig(item.request_type).targetSelector === 'account' ? await loadAccountsByIds(ids) : new Map()
-      setEditor({ open: true, isCreate: false, item, accountOptions: options, loading: false })
+      setEditor({ open: true, isCreate: false, item, loading: false })
     } catch (error) {
-      setEditor({ open: false, isCreate: false, item: null, accountOptions: new Map(), loading: false })
-      appMessage.error(errorMessage(error))
+      setEditor({ open: false, isCreate: false, item: null, loading: false })
+      appMessageRef.current.error(errorMessage(error))
     }
-  }
+  }, [items])
 
-  const deleteStrategy = async item => {
+  const deleteStrategy = useCallback(async item => {
     setDeletingId(item.id)
     try {
       await api.mutate(`/api/strategies/${encodeURIComponent(item.id)}`, { method: 'DELETE', body: { expected_updated_at: item.updated_at } })
-      appMessage.success('策略已删除')
+      appMessageRef.current.success('策略已删除')
       await loadStrategies()
     } catch (error) {
-      appMessage.error(errorMessage(error))
+      appMessageRef.current.error(errorMessage(error))
     } finally {
       setDeletingId(null)
     }
-  }
+  }, [loadStrategies])
 
-  useEffect(() => {
-    loadStrategies()
-  }, [refreshKey])
+  useEffect(() => { loadStrategies() }, [loadStrategies, refreshKey])
 
   return <div className="management-page strategy-page">
     <div className="strategy-react-page-heading">
@@ -487,7 +498,7 @@ export function StrategyPage({ canWrite, refreshKey = 0 }) {
     {!listState.loading && !listState.error && items.length ? <Row gutter={[16, 16]}>{items.map(item => <Col xs={24} xl={12} key={item.id}><StrategyCard item={item} config={getStrategyTypeConfig(item.request_type)} accountOptions={accountOptions} canWrite={canWrite} onEdit={openEdit} onDelete={deleteStrategy} deleting={deletingId === item.id} /></Col>)}</Row> : null}
     {editor.open ? <StrategyDrawer editor={editor} canWrite={canWrite} onClose={() => setEditor(current => ({ ...current, open: false }))} onSaved={async () => { setEditor(current => ({ ...current, open: false })); await loadStrategies() }} /> : null}
   </div>
-}
+})
 
 function StrategyAppContent() {
   const { message: appMessage } = AntApp.useApp()

@@ -64,6 +64,7 @@ export const DECISION_STATUS_META = Object.freeze({
 export const DECISION_SOURCE_LABELS = Object.freeze({ manual: '人工', auto: '自动' })
 
 export const RULE_OPERATOR_LABELS = Object.freeze({
+  exact: '完全匹配',
   contains: '包含',
   not_contains: '不包含',
   eq: '等于',
@@ -73,7 +74,7 @@ export const RULE_OPERATOR_LABELS = Object.freeze({
   lte: '小于等于'
 })
 
-export const RULE_SCOPE_LABELS = Object.freeze({ account: '公众号', article: '文章' })
+export const RULE_SCOPE_LABELS = Object.freeze({ account: '公众号', article: '文章', hotword: '热词' })
 
 export const RULE_FIELD_LABELS = Object.freeze({
   name: '公众号名称',
@@ -83,7 +84,8 @@ export const RULE_FIELD_LABELS = Object.freeze({
   title: '文章标题',
   read_count: '阅读量',
   like_count: '点赞数',
-  comment_count: '留言数'
+  comment_count: '留言数',
+  hotword: '热词'
 })
 
 export const FIELD_FORMATTERS = Object.freeze({

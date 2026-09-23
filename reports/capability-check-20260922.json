@@ -1,0 +1,795 @@
+{
+  "runDate": "20260918",
+  "filterRules": {
+    "source": "default",
+    "loadedAt": "2026-09-18T04:30:00.000Z",
+    "count": 0,
+    "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "accounts": {
+    "runId": "pipeline-20260918",
+    "rawCount": 3,
+    "uniqueCount": 2,
+    "duplicateCount": 1,
+    "invalidCount": 0,
+    "created": 2,
+    "updated": 0,
+    "unchanged": 0,
+    "profileTimeRefreshed": 2,
+    "changes": [
+      {
+        "scope": "account",
+        "field": "wx_name",
+        "wx_biz": "fixture-filtered",
+        "account_id": "acct_c5dc8394d03cb823a5d9ce3c",
+        "old": null,
+        "new": "普通账号"
+      },
+      {
+        "scope": "account",
+        "field": "verify",
+        "wx_biz": "fixture-filtered",
+        "account_id": "acct_c5dc8394d03cb823a5d9ce3c",
+        "old": null,
+        "new": "个人"
+      },
+      {
+        "scope": "account",
+        "field": "description",
+        "wx_biz": "fixture-filtered",
+        "account_id": "acct_c5dc8394d03cb823a5d9ce3c",
+        "old": null,
+        "new": "重复来源行"
+      },
+      {
+        "scope": "account",
+        "field": "read_median",
+        "wx_biz": "fixture-filtered",
+        "account_id": "acct_c5dc8394d03cb823a5d9ce3c",
+        "old": null,
+        "new": 49999
+      },
+      {
+        "scope": "profile",
+        "field": "read_median",
+        "wx_biz": "fixture-filtered",
+        "account_id": "acct_c5dc8394d03cb823a5d9ce3c",
+        "old": null,
+        "new": 49999
+      },
+      {
+        "scope": "account",
+        "field": "wx_name",
+        "wx_biz": "fixture-null-median",
+        "account_id": "acct_f54be8cd104ea94d867f8739",
+        "old": null,
+        "new": "待审核账号"
+      },
+      {
+        "scope": "account",
+        "field": "verify",
+        "wx_biz": "fixture-null-median",
+        "account_id": "acct_f54be8cd104ea94d867f8739",
+        "old": null,
+        "new": "个人"
+      }
+    ]
+  },
+  "articles": {
+    "rawCount": 3,
+    "newAccountsFromArticles": 1,
+    "statusCounts": {
+      "ACCOUNT_FILTERED": 1,
+      "SELECTED": 2
+    },
+    "decisions": [
+      {
+        "article_id": "fixture-article-1",
+        "title": "苹果发布会",
+        "wx_biz": "fixture-filtered",
+        "account_id": "acct_c5dc8394d03cb823a5d9ce3c",
+        "status": "ACCOUNT_FILTERED",
+        "filterRuleId": "105",
+        "reason": "105:read_median < 50000",
+        "accountMatched": true
+      },
+      {
+        "article_id": "fixture-article-2",
+        "title": "苹果新闻",
+        "wx_biz": "fixture-null-median",
+        "account_id": "acct_f54be8cd104ea94d867f8739",
+        "status": "SELECTED",
+        "filterRuleId": "",
+        "reason": "",
+        "accountMatched": true
+      },
+      {
+        "article_id": "fixture-article-3",
+        "title": "苹果新账号",
+        "wx_biz": "fixture-new-account",
+        "account_id": "acct_40095d544f31ff053176923d",
+        "status": "SELECTED",
+        "filterRuleId": "",
+        "reason": "",
+        "accountMatched": true
+      }
+    ]
+  },
+  "hotwords": {
+    "count": 39,
+    "rows": [
+      {
+        "word": "苹果",
+        "token_type": "zh",
+        "gram": 2,
+        "stat_date": "20260918",
+        "article_count": 3,
+        "account_count": 3,
+        "read_sum": 600,
+        "weighted_count": 9,
+        "score": 15.398594934535208,
+        "examples": [
+          "苹果发布会",
+          "苹果新闻",
+          "苹果新账号"
+        ],
+        "article_ids": [
+          "fixture-article-1",
+          "fixture-article-2",
+          "fixture-article-3"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "果新",
+        "token_type": "zh",
+        "gram": 2,
+        "stat_date": "20260918",
+        "article_count": 2,
+        "account_count": 2,
+        "read_sum": 500,
+        "weighted_count": 4,
+        "score": 10.216606101084864,
+        "examples": [
+          "苹果新闻",
+          "苹果新账号"
+        ],
+        "article_ids": [
+          "fixture-article-2",
+          "fixture-article-3"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "苹果新",
+        "token_type": "zh",
+        "gram": 3,
+        "stat_date": "20260918",
+        "article_count": 2,
+        "account_count": 2,
+        "read_sum": 500,
+        "weighted_count": 4,
+        "score": 10.216606101084864,
+        "examples": [
+          "苹果新闻",
+          "苹果新账号"
+        ],
+        "article_ids": [
+          "fixture-article-2",
+          "fixture-article-3"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "果新账",
+        "token_type": "zh",
+        "gram": 3,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 300,
+        "weighted_count": 2,
+        "score": 7.707110264748875,
+        "examples": [
+          "苹果新账号"
+        ],
+        "article_ids": [
+          "fixture-article-3"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "果新账号",
+        "token_type": "zh",
+        "gram": 4,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 300,
+        "weighted_count": 2,
+        "score": 7.707110264748875,
+        "examples": [
+          "苹果新账号"
+        ],
+        "article_ids": [
+          "fixture-article-3"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "苹果新账",
+        "token_type": "zh",
+        "gram": 4,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 300,
+        "weighted_count": 2,
+        "score": 7.707110264748875,
+        "examples": [
+          "苹果新账号"
+        ],
+        "article_ids": [
+          "fixture-article-3"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "新账",
+        "token_type": "zh",
+        "gram": 2,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 300,
+        "weighted_count": 2,
+        "score": 7.707110264748875,
+        "examples": [
+          "苹果新账号"
+        ],
+        "article_ids": [
+          "fixture-article-3"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "新账号",
+        "token_type": "zh",
+        "gram": 3,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 300,
+        "weighted_count": 2,
+        "score": 7.707110264748875,
+        "examples": [
+          "苹果新账号"
+        ],
+        "article_ids": [
+          "fixture-article-3"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "账号",
+        "token_type": "zh",
+        "gram": 2,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 300,
+        "weighted_count": 2,
+        "score": 7.707110264748875,
+        "examples": [
+          "苹果新账号"
+        ],
+        "article_ids": [
+          "fixture-article-3"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "布会",
+        "token_type": "zh",
+        "gram": 2,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 3,
+        "score": 7.61512051684126,
+        "examples": [
+          "苹果发布会"
+        ],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "发布",
+        "token_type": "zh",
+        "gram": 2,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 3,
+        "score": 7.61512051684126,
+        "examples": [
+          "苹果发布会"
+        ],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "发布会",
+        "token_type": "zh",
+        "gram": 3,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 3,
+        "score": 7.61512051684126,
+        "examples": [
+          "苹果发布会"
+        ],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "果发",
+        "token_type": "zh",
+        "gram": 2,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 3,
+        "score": 7.61512051684126,
+        "examples": [
+          "苹果发布会"
+        ],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "果发布",
+        "token_type": "zh",
+        "gram": 3,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 3,
+        "score": 7.61512051684126,
+        "examples": [
+          "苹果发布会"
+        ],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "果发布会",
+        "token_type": "zh",
+        "gram": 4,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 3,
+        "score": 7.61512051684126,
+        "examples": [
+          "苹果发布会"
+        ],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "苹果发",
+        "token_type": "zh",
+        "gram": 3,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 3,
+        "score": 7.61512051684126,
+        "examples": [
+          "苹果发布会"
+        ],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "苹果发布",
+        "token_type": "zh",
+        "gram": 4,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 3,
+        "score": 7.61512051684126,
+        "examples": [
+          "苹果发布会"
+        ],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "果新闻",
+        "token_type": "zh",
+        "gram": 3,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 200,
+        "weighted_count": 2,
+        "score": 7.303304908059076,
+        "examples": [
+          "苹果新闻"
+        ],
+        "article_ids": [
+          "fixture-article-2"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "苹果新闻",
+        "token_type": "zh",
+        "gram": 4,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 200,
+        "weighted_count": 2,
+        "score": 7.303304908059076,
+        "examples": [
+          "苹果新闻"
+        ],
+        "article_ids": [
+          "fixture-article-2"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "新闻",
+        "token_type": "zh",
+        "gram": 2,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 200,
+        "weighted_count": 2,
+        "score": 7.303304908059076,
+        "examples": [
+          "苹果新闻"
+        ],
+        "article_ids": [
+          "fixture-article-2"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "果内",
+        "token_type": "zh",
+        "gram": 2,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 300,
+        "weighted_count": 1,
+        "score": 6.707110264748875,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-3"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "果内容",
+        "token_type": "zh",
+        "gram": 3,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 300,
+        "weighted_count": 1,
+        "score": 6.707110264748875,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-3"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "内容",
+        "token_type": "zh",
+        "gram": 2,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 300,
+        "weighted_count": 1,
+        "score": 6.707110264748875,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-3"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "苹果内",
+        "token_type": "zh",
+        "gram": 3,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 300,
+        "weighted_count": 1,
+        "score": 6.707110264748875,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-3"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "苹果内容",
+        "token_type": "zh",
+        "gram": 4,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 300,
+        "weighted_count": 1,
+        "score": 6.707110264748875,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-3"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "动态",
+        "token_type": "zh",
+        "gram": 2,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 200,
+        "weighted_count": 1,
+        "score": 6.303304908059076,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-2"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "果动",
+        "token_type": "zh",
+        "gram": 2,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 200,
+        "weighted_count": 1,
+        "score": 6.303304908059076,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-2"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "果动态",
+        "token_type": "zh",
+        "gram": 3,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 200,
+        "weighted_count": 1,
+        "score": 6.303304908059076,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-2"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "苹果动",
+        "token_type": "zh",
+        "gram": 3,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 200,
+        "weighted_count": 1,
+        "score": 6.303304908059076,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-2"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "苹果动态",
+        "token_type": "zh",
+        "gram": 4,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 200,
+        "weighted_count": 1,
+        "score": 6.303304908059076,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-2"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "布会的",
+        "token_type": "zh",
+        "gram": 3,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 1,
+        "score": 5.61512051684126,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "布会的观",
+        "token_type": "zh",
+        "gram": 4,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 1,
+        "score": 5.61512051684126,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "的观",
+        "token_type": "zh",
+        "gram": 2,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 1,
+        "score": 5.61512051684126,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "的观察",
+        "token_type": "zh",
+        "gram": 3,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 1,
+        "score": 5.61512051684126,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "发布会的",
+        "token_type": "zh",
+        "gram": 4,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 1,
+        "score": 5.61512051684126,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "观察",
+        "token_type": "zh",
+        "gram": 2,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 1,
+        "score": 5.61512051684126,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "会的",
+        "token_type": "zh",
+        "gram": 2,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 1,
+        "score": 5.61512051684126,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "会的观",
+        "token_type": "zh",
+        "gram": 3,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 1,
+        "score": 5.61512051684126,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      },
+      {
+        "word": "会的观察",
+        "token_type": "zh",
+        "gram": 4,
+        "stat_date": "20260918",
+        "article_count": 1,
+        "account_count": 1,
+        "read_sum": 100,
+        "weighted_count": 1,
+        "score": 5.61512051684126,
+        "examples": [],
+        "article_ids": [
+          "fixture-article-1"
+        ],
+        "article_url": null
+      }
+    ]
+  }
+}

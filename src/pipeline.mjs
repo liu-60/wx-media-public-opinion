@@ -1,109 +1,16 @@
 import configFile from '../config/default.json' with { type: 'json' }
 import { nowIso } from './db.mjs'
-import { syncAccounts, timestampToIso } from './account-sync.mjs'
-import { ensureArticleAccount } from './account-collection.mjs'
-import { articleIdentity, coarseFilterArticle, createRuleSnapshot, persistFilterAudit, DEFAULT_FILTER_CONFIG } from './article-filter.mjs'
-import { aggregateHotwords, persistHotwords } from './hotwords.mjs'
+import { createRuleSnapshot, DEFAULT_FILTER_CONFIG } from './article-filter.mjs'
 import { fetchAccountSources } from './wxrank-client.mjs'
+import { createPipelineStages, normalizeArticle } from './pipeline-stages.mjs'
 
-function text(value) {
-  if (value === undefined || value === null) return ''
-  return String(value).trim()
-}
-
-function first(row, ...keys) {
-  for (const key of keys) {
-    if (Object.prototype.hasOwnProperty.call(row, key) && row[key] !== undefined && row[key] !== null) return row[key]
-  }
-  return undefined
-}
-
-function json(value) {
-  try { return JSON.stringify(value) } catch { return '{}' }
-}
-
-function integer(value) {
-  if (value === undefined || value === null || value === '') return 0
-  const parsed = Number(String(value).replaceAll(',', ''))
-  return Number.isFinite(parsed) ? Math.trunc(parsed) : 0
-}
-
-function publishTime(value) {
-  if (value === undefined || value === null || value === '') return ''
-  if (/^\d{10,13}$/u.test(String(value).trim())) return timestampToIso(value) || ''
-  return String(value).trim()
-}
+function text(value) { return value === undefined || value === null ? '' : String(value).trim() }
 
 function dateKey(value, fallback) {
   const source = text(value || fallback).replaceAll('-', '')
   if (/^20\d{6}/u.test(source)) return source.slice(0, 8)
   const date = new Date(value || fallback)
   return Number.isNaN(date.getTime()) ? new Date().toISOString().slice(0, 10).replaceAll('-', '') : date.toISOString().slice(0, 10).replaceAll('-', '')
-}
-
-function articleId(article, normalized) {
-  return articleIdentity({ ...article, ...normalized }).articleId
-}
-
-function normalizeArticle(article = {}) {
-  const wxBiz = text(first(article, 'wx_biz', 'wxBiz', '__biz', 'biz'))
-  const title = text(first(article, 'title', 'article_title', 'art_title', 'name'))
-  const content = text(first(article, 'content', 'body', 'article_content', 'text'))
-  const articleUrl = text(first(article, 'article_url', 'articleUrl', 'art_url', 'url', 'link'))
-  const publish = publishTime(first(article, 'publish_time', 'publishTime', 'pub_time', 'publish_date', 'created_at', 'date'))
-  return {
-    ...article,
-    article_id: articleId(article, { article_url: articleUrl, title, publish_time: publish, wx_biz: wxBiz }),
-    article_url: articleUrl,
-    title,
-    content,
-    publish_time: publish,
-    wx_biz: wxBiz || null,
-    publisher: text(first(article, 'publisher', 'wx_name', 'wxName', 'account_name', 'name')),
-    read_num: integer(first(article, 'read_num', 'readNum', 'read')),
-    like_num: integer(first(article, 'like_num', 'likeNum', 'like')),
-    look_num: integer(first(article, 'look_num', 'lookNum', 'look')),
-    share_num: integer(first(article, 'share_num', 'shareNum', 'share')),
-    comment_num: integer(first(article, 'comment_num', 'commentNum', 'comment', 'comment_count'))
-  }
-}
-
-function decisionForAccount(account, accountDecisions) {
-  if (!account || accountDecisions === undefined) return account
-  const keys = [account.account_id, account.wx_biz].filter(Boolean)
-  let value
-  if (accountDecisions instanceof Map) value = keys.map(key => accountDecisions.get(key)).find(item => item !== undefined)
-  else value = keys.map(key => accountDecisions[key]).find(item => item !== undefined)
-  return {
-    ...account,
-    decision_status: value && typeof value === 'object' ? value.decision_status : value,
-    decision_required: true
-  }
-}
-
-function readAccount(db, wxBiz) {
-  if (!wxBiz) return null
-  return db.prepare('SELECT * FROM accounts WHERE wx_biz=? LIMIT 1').get(wxBiz) || null
-}
-
-function persistArticle(db, article, account, decision, source, now) {
-  const rawJson = json(article)
-  db.prepare(`INSERT INTO articles(
-    article_id,article_url,title,content,publish_time,wx_biz,account_id,publisher,read_num,like_num,look_num,share_num,
-    source,status,filter_rule_id,filter_reason,raw_json,created_at,updated_at
-  ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-  ON CONFLICT(article_id) DO UPDATE SET
-    article_url=excluded.article_url,title=excluded.title,content=excluded.content,publish_time=excluded.publish_time,
-    wx_biz=excluded.wx_biz,account_id=excluded.account_id,publisher=excluded.publisher,read_num=excluded.read_num,
-    like_num=excluded.like_num,look_num=excluded.look_num,share_num=excluded.share_num,source=excluded.source,
-    status=excluded.status,filter_rule_id=excluded.filter_rule_id,filter_reason=excluded.filter_reason,
-    raw_json=excluded.raw_json,updated_at=excluded.updated_at`).run(
-    article.article_id, article.article_url, article.title, article.content, article.publish_time, article.wx_biz,
-    account?.account_id || null, article.publisher || account?.wx_name || '', article.read_num, article.like_num,
-    article.look_num, article.share_num, source, decision.status, decision.filterRuleId, decision.reason, rawJson, now, now
-  )
-  db.prepare('DELETE FROM article_filter_audit WHERE article_id=?').run(article.article_id)
-  persistFilterAudit(db, article.article_id, account?.account_id || null, decision, now)
 }
 
 export function runPipeline({
@@ -119,7 +26,9 @@ export function runPipeline({
   persistedRules = undefined,
   ruleSource = 'default',
   ruleLoadedAt = now,
-  hotwordConfig = configFile.hotword || {}
+  hotwordConfig = configFile.hotword || {},
+  persistHotwordsStage = true,
+  includeHotwordRows = true
 } = {}) {
   if (!db) throw new TypeError('db is required')
   if (ruleSnapshot !== undefined && (!ruleSnapshot || !Array.isArray(ruleSnapshot.rules))) throw new TypeError('ruleSnapshot.rules must be an array')
@@ -130,28 +39,24 @@ export function runPipeline({
   })
   const activeRules = suppliedRules === undefined ? undefined : snapshot.rules
   const statDate = dateKey(runDate, now)
-  const accountSummary = syncAccounts(db, accountRows, {
-    source,
-    collectedAt: now,
-    now,
-    runId: `pipeline-${statDate}`
-  })
+  const stages = createPipelineStages({ db, now, source, ruleConfig, activeRules, accountDecisions, hotwordConfig, statDate })
+  const accountSummary = stages.syncAccounts(accountRows)
   const decisions = []
   const normalizedArticles = []
   let newAccountsFromArticles = 0
   db.exec('BEGIN')
   try {
     for (const sourceArticle of articleRows) {
-      const article = normalizeArticle(sourceArticle)
-      let account = readAccount(db, article.wx_biz)
+      const article = stages.normalizeArticle(sourceArticle)
+      let account = stages.readAccount(article.wx_biz)
       if (!account && article.wx_biz) {
-        const result = ensureArticleAccount(db, { ...article, wx_name: article.publisher }, { now, source: 'article' })
+        const result = stages.ensureArticleAccount({ ...article, wx_name: article.publisher })
         newAccountsFromArticles += result.created ? 1 : 0
-        account = readAccount(db, article.wx_biz)
+        account = stages.readAccount(article.wx_biz)
       }
-      const accountWithDecision = decisionForAccount(account, accountDecisions)
-      const decision = coarseFilterArticle(article, accountWithDecision, ruleConfig, activeRules)
-      persistArticle(db, article, account, decision, source, now)
+      const accountWithDecision = stages.accountWithDecision(account)
+      const decision = stages.filterArticle(article, accountWithDecision)
+      stages.persistArticle(article, account, decision)
       const record = {
         article_id: article.article_id,
         title: article.title,
@@ -160,17 +65,14 @@ export function runPipeline({
         status: decision.status,
         filterRuleId: decision.filterRuleId,
         reason: decision.reason,
+        decision_source: decision.decisionSource || (decision.status === 'SELECTED' ? 'rules' : 'rules'),
         accountMatched: decision.accountMatched
       }
       decisions.push(record)
       normalizedArticles.push({ ...article, account_id: accountWithDecision?.account_id || null })
     }
-    const hotwordRows = aggregateHotwords(normalizedArticles, {
-      ...hotwordConfig,
-      statDate,
-      now
-    })
-    persistHotwords(db, hotwordRows, { now })
+    const hotwordRows = stages.collectHotwords(normalizedArticles)
+    if (persistHotwordsStage) stages.persistHotwords(hotwordRows)
     db.exec('COMMIT')
     const statusCounts = Object.fromEntries([...new Set(decisions.map(item => item.status))].map(status => [status, decisions.filter(item => item.status === status).length]))
     return {
@@ -188,7 +90,7 @@ export function runPipeline({
         statusCounts,
         decisions
       },
-      hotwords: { count: hotwordRows.length, rows: hotwordRows }
+      hotwords: { count: hotwordRows.length, rows: includeHotwordRows ? hotwordRows : [] }
     }
   } catch (error) {
     db.exec('ROLLBACK')

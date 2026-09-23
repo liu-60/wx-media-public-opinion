@@ -9,7 +9,7 @@ await build({
   jsx: 'automatic',
   outfile: 'management-center/public/management-app.js',
   sourcemap: false,
-  minify: false,
+  minify: true,
   legalComments: 'none'
 })
 

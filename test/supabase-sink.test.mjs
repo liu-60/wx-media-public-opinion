@@ -112,3 +112,49 @@ test('missing report decisions never make a source article writable', () => {
   })
   assert.equal(writeSet.articles.length, 0)
 })
+
+test('preserves the real URL sn instead of the longer canonical article key in article_sn', () => {
+  const writeSet = buildSupabaseWriteSet({
+    accountRows: [{ wx_biz: 'biz-sn', wx_name: '账号' }],
+    articleRows: [{
+      article_id: 'biz-sn:0123456789abcdef0123456789abcdef:1',
+      wx_biz: 'biz-sn',
+      article_sn: '0123456789abcdef0123456789abcdef',
+      idx: 1,
+      title: '真实 sn',
+      article_url: 'https://mp.weixin.qq.com/s?__biz=biz-sn&sn=0123456789abcdef0123456789abcdef&idx=1'
+    }],
+    report: { articles: { decisions: [{ article_id: 'biz-sn:0123456789abcdef0123456789abcdef:1', status: 'SELECTED' }] }, hotwords: { rows: [] } }
+  })
+  assert.equal(writeSet.articles[0].article_sn, '0123456789abcdef0123456789abcdef')
+  assert.ok(writeSet.articles[0].article_sn.length <= 32)
+})
+
+test('REST sink groups heterogeneous upsert rows by object shape for PostgREST', async () => {
+  const writeSet = {
+    accounts: [
+      { wx_biz: 'biz-a', account: { wx_biz: 'biz-a', updated_at: '2026-09-18T00:00:00.000Z', wx_name: 'A' }, profile: { wx_biz: 'biz-a', collected_at: '2026-09-18T00:00:00.000Z' } },
+      { wx_biz: 'biz-b', account: { wx_biz: 'biz-b', updated_at: '2026-09-18T00:00:00.000Z', description: 'B' }, profile: { wx_biz: 'biz-b', collected_at: '2026-09-18T00:00:00.000Z' } }
+    ],
+    articles: [],
+    hotwords: []
+  }
+  const calls = []
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url: String(url), options })
+    const parsed = new URL(url)
+    if (parsed.pathname.endsWith('/accounts') && options.method === 'GET') return { ok: true, status: 200, json: async () => [] }
+    if (parsed.pathname.endsWith('/accounts') && options.method === 'POST') {
+      const rows = JSON.parse(options.body)
+      const keys = Object.keys(rows[0]).sort().join('|')
+      if (rows.some(row => Object.keys(row).sort().join('|') !== keys)) return { ok: false, status: 400, json: async () => ({ code: 'PGRST102' }) }
+      return { ok: true, status: 201, json: async () => rows.map((row, index) => ({ ...row, account_id: index + 1 })) }
+    }
+    if (parsed.pathname.endsWith('/account_profiles') && options.method === 'GET') return { ok: true, status: 200, json: async () => [] }
+    if (parsed.pathname.endsWith('/account_profiles') && options.method === 'POST') return { ok: true, status: 201, json: async () => [] }
+    throw new Error(`unexpected request: ${url}`)
+  }
+  const result = await createSupabaseRestSink({ url: 'https://project.supabase.co', key: 'server-only-test-key', fetchImpl }).write(writeSet)
+  assert.equal(result.accountCount, 2)
+  assert.equal(calls.filter(call => call.url.endsWith('/accounts?on_conflict=wx_biz')).length, 2)
+})

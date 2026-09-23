@@ -97,7 +97,8 @@ function articleId(row) {
 }
 
 function articleSn(row) {
-  return articleIdentity(row).articleSn
+  const explicit = first(row, 'article_sn', 'articleSn', 'sn')
+  return hasValue(explicit) ? text(explicit) : articleIdentity(row).articleSn
 }
 
 function articleIndex(row, url) {
@@ -299,7 +300,17 @@ export function createSupabaseRestSink({ url, key, fetchImpl = globalThis.fetch 
 
   async function postBatches(table, rows, query = '') {
     const result = []
-    for (const part of chunks(rows)) {
+    // PostgREST requires every object in one JSON array to have the same key
+    // set.  Payloads intentionally omit unknown fields so that existing
+    // values are preserved; group by shape before batching rather than padding
+    // missing fields with nulls.
+    const groups = new Map()
+    for (const row of rows) {
+      const signature = Object.keys(row).sort().join('\u0000')
+      if (!groups.has(signature)) groups.set(signature, [])
+      groups.get(signature).push(row)
+    }
+    for (const group of groups.values()) for (const part of chunks(group)) {
       if (!part.length) continue
       const payload = await request(table, {
         method: 'POST',

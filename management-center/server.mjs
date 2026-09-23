@@ -2,14 +2,23 @@ import http from 'node:http'
 import { readFile, realpath } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveManagementToken } from './dev-token.mjs'
 import { createSupabaseClient } from './services/supabase.mjs'
 import { createAccountsArticlesService } from './services/accounts-articles.mjs'
 import { createRulesHotwordsStrategiesService } from './services/rules-hotwords-strategies.mjs'
+import { createCollectionDb } from './services/collection-db.mjs'
+import { createCollectorService } from './services/collectors.mjs'
+import { createWorkflowService } from './services/workflows.mjs'
+import { createCollectionRunService } from './services/collection-runs.mjs'
+import { createCollectionArtifactService } from './services/collection-artifacts.mjs'
+import { createCollectionPublishService } from './services/collection-publish.mjs'
+import { startValidationWorker } from '../src/runner/validation-worker.mjs'
 
 const MAX_BODY_BYTES = 1024 * 1024
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url))
 const PUBLIC_DIR = path.join(MODULE_DIR, 'public')
 const SAFE_ERROR_CODE = /^[A-Z][A-Z0-9_]{1,63}$/u
+const MANAGEMENT_TOKEN_COOKIE = 'management_dev_token'
 
 function responsePayload(error, fallbackCode = 'INTERNAL_ERROR') {
   const rawStatus = Number(error?.status)
@@ -20,14 +29,28 @@ function responsePayload(error, fallbackCode = 'INTERNAL_ERROR') {
   return { status, body: { error: clientError ? 'Invalid request' : 'Service unavailable', code, details: null } }
 }
 
-function sendJson(response, status, body) {
-  response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
+function sendJson(response, status, body, headers = {}) {
+  response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...headers })
   response.end(JSON.stringify(body))
 }
 
 function allowedHost(request, host) {
   const localPort = request.socket.localPort
   return request.headers.host === `${host}:${localPort}`
+}
+
+function cookieValue(request, name) {
+  const cookies = String(request.headers.cookie || '').split(';')
+  for (const item of cookies) {
+    const separator = item.indexOf('=')
+    if (separator < 0) continue
+    if (item.slice(0, separator).trim() === name) return item.slice(separator + 1).trim()
+  }
+  return ''
+}
+
+function persistentTokenCookie(token) {
+  return `${MANAGEMENT_TOKEN_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=2147483647`
 }
 
 async function readJsonBody(request) {
@@ -79,6 +102,7 @@ function unavailableService() {
     deleteArticle: unavailable,
     bulkDeleteArticles: unavailable,
     listRules: unavailable,
+    getRule: unavailable,
     listRuleGroups: unavailable,
     saveRuleGroup: unavailable,
     createRule: unavailable,
@@ -99,7 +123,37 @@ function unavailableService() {
     updateStrategy: unavailable,
     deleteStrategy: unavailable,
     executionCapability: unavailable,
-    executeStrategy: unavailable
+    executeStrategy: unavailable,
+    listCollectorScripts: unavailable,
+    getCollectorScript: unavailable,
+    createCollectorScript: unavailable,
+    updateCollectorScript: unavailable,
+    deleteCollectorScript: unavailable,
+    createCollectionScriptRun: unavailable,
+    listCollectionScriptRuns: unavailable,
+    listCollectionWorkflows: unavailable,
+    getCollectionWorkflow: unavailable,
+    createCollectionWorkflow: unavailable,
+    updateCollectionWorkflow: unavailable,
+    deleteCollectionWorkflow: unavailable,
+    listCollectionWorkflowSteps: unavailable,
+    createCollectionWorkflowStep: unavailable,
+    updateCollectionWorkflowStep: unavailable,
+    deleteCollectionWorkflowStep: unavailable,
+    reorderCollectionWorkflowSteps: unavailable,
+    listCollectionRuns: unavailable,
+    getCollectionRun: unavailable,
+    listCollectionRunSteps: unavailable,
+    createCollectionRun: unavailable,
+    cancelCollectionRun: unavailable,
+    retainCollectionRun: unavailable,
+    skipCollectionStep: unavailable,
+    rerunCollectionRun: unavailable,
+    listCollectionArtifacts: unavailable,
+    listCollectionArtifactCandidates: unavailable,
+    getCollectionArtifact: unavailable,
+    previewCollectionPublish: unavailable,
+    commitCollectionPublish: unavailable
   })
 }
 
@@ -119,9 +173,45 @@ function defaultService() {
   const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) return unavailableService()
   const client = createSupabaseClient({ url, key })
+  const collectionDb = createCollectionDb({ url, key })
+  const collectors = createCollectorService({ client: collectionDb })
+  const workflows = createWorkflowService({ client: collectionDb })
+  const runs = createCollectionRunService({ client: collectionDb, startValidationRun: startValidationWorker })
+  const artifacts = createCollectionArtifactService({ root: path.resolve('data/collection-runs'), runService: runs })
+  const publish = createCollectionPublishService({ artifactService: artifacts, runService: runs })
   return Object.freeze({
     ...createAccountsArticlesService({ client }),
     ...createRulesHotwordsStrategiesService({ client }),
+    listCollectorScripts: collectors.list,
+    getCollectorScript: collectors.get,
+    createCollectorScript: collectors.create,
+    updateCollectorScript: collectors.update,
+    deleteCollectorScript: collectors.remove,
+    createCollectionScriptRun: runs.createScriptRun,
+    listCollectionScriptRuns: runs.scriptRuns,
+    listCollectionWorkflows: workflows.list,
+    getCollectionWorkflow: workflows.get,
+    createCollectionWorkflow: workflows.create,
+    updateCollectionWorkflow: workflows.update,
+    deleteCollectionWorkflow: workflows.remove,
+    listCollectionWorkflowSteps: workflows.listSteps,
+    createCollectionWorkflowStep: workflows.createStep,
+    updateCollectionWorkflowStep: workflows.updateStep,
+    deleteCollectionWorkflowStep: workflows.removeStep,
+    reorderCollectionWorkflowSteps: workflows.reorder,
+    listCollectionRuns: runs.list,
+    getCollectionRun: runs.get,
+    listCollectionRunSteps: runs.steps,
+    createCollectionRun: runs.create,
+    cancelCollectionRun: runs.cancel,
+    retainCollectionRun: runs.retain,
+    skipCollectionStep: runs.skipStep,
+    rerunCollectionRun: runs.rerun,
+    listCollectionArtifacts: artifacts.list,
+    listCollectionArtifactCandidates: artifacts.candidates,
+    getCollectionArtifact: artifacts.get,
+    previewCollectionPublish: publish.preview,
+    commitCollectionPublish: publish.commit,
     ping: client.ping,
     summary: client.summary
   })
@@ -154,10 +244,16 @@ async function serveStatic(request, response, pathname) {
   }
 }
 
-export function createManagementServer({ service = defaultService(), token = process.env.MANAGEMENT_TOKEN || '', host = '127.0.0.1', port = 4173 } = {}) {
+export function createManagementServer({ service = defaultService(), token, tokenFile, host = '127.0.0.1', port = 4173 } = {}) {
   if (host !== '127.0.0.1') throw new TypeError('Management server must bind to 127.0.0.1')
   if (!Number.isSafeInteger(port) || port < 0 || port > 65535) throw new TypeError('Invalid management port')
   if (!service || typeof service.ping !== 'function' || typeof service.summary !== 'function') throw new TypeError('Management service is required')
+  const tokenResolution = token === undefined
+    ? resolveManagementToken({ filePath: tokenFile })
+    : tokenFile && !String(token).trim()
+      ? resolveManagementToken({ token: '', filePath: tokenFile })
+      : { token: String(token), source: String(token).trim() ? 'explicit_token' : 'disabled', filePath: null }
+  const managementToken = tokenResolution.token
 
   return http.createServer(async (request, response) => {
     const requestUrl = new URL(request.url || '/', `http://${host}`)
@@ -167,7 +263,9 @@ export function createManagementServer({ service = defaultService(), token = pro
 
     const method = String(request.method || 'GET').toUpperCase()
     if (method !== 'GET' && method !== 'HEAD') {
-      if (!token || request.headers['x-management-token'] !== token) return sendJson(response, 401, { error: 'Invalid request', code: 'TOKEN_REQUIRED', details: null })
+      const headerToken = String(request.headers['x-management-token'] || '')
+      const cookieToken = cookieValue(request, MANAGEMENT_TOKEN_COOKIE)
+      if (!managementToken || (headerToken !== managementToken && cookieToken !== managementToken)) return sendJson(response, 401, { error: 'Invalid request', code: 'TOKEN_REQUIRED', details: null })
       const origin = request.headers.origin
       const expectedOrigin = `http://${host}:${request.socket.localPort}`
       if (origin !== expectedOrigin) return sendJson(response, 403, { error: 'Invalid request', code: 'ORIGIN_NOT_ALLOWED', details: null })
@@ -180,6 +278,72 @@ export function createManagementServer({ service = defaultService(), token = pro
       try {
         if (method === 'POST' && requestUrl.pathname === '/api/executions') {
           return sendJson(response, 501, { error: 'Service unavailable', code: 'CAPABILITY_UNAVAILABLE', details: null })
+        }
+        if (method === 'POST' && requestUrl.pathname === '/api/collection/scripts' && typeof service.createCollectorScript === 'function') {
+          return sendJson(response, 201, await service.createCollectorScript(body))
+        }
+        if (method === 'POST' && requestUrl.pathname === '/api/collection/workflows' && typeof service.createCollectionWorkflow === 'function') {
+          return sendJson(response, 201, await service.createCollectionWorkflow(body))
+        }
+        const workflowSteps = /^\/api\/collection\/workflows\/([^/]+)\/steps$/u.exec(requestUrl.pathname)
+        if (method === 'POST' && workflowSteps && typeof service.createCollectionWorkflowStep === 'function') {
+          return sendJson(response, 201, await service.createCollectionWorkflowStep(decodePathSegment(workflowSteps[1]), body))
+        }
+        if (method === 'POST' && /^\/api\/collection\/workflows\/[^/]+\/reorder$/u.test(requestUrl.pathname) && typeof service.reorderCollectionWorkflowSteps === 'function') {
+          const workflowId = decodePathSegment(requestUrl.pathname.split('/')[4])
+          return sendJson(response, 200, await service.reorderCollectionWorkflowSteps(workflowId, body?.steps))
+        }
+        if (method === 'POST' && requestUrl.pathname === '/api/collection/runs' && typeof service.createCollectionRun === 'function') {
+          return sendJson(response, 201, await service.createCollectionRun(body))
+        }
+        const collectionScriptRun = /^\/api\/collection\/scripts\/([^/]+)\/runs$/u.exec(requestUrl.pathname)
+        if (method === 'POST' && collectionScriptRun && typeof service.createCollectionScriptRun === 'function') {
+          return sendJson(response, 201, await service.createCollectionScriptRun({ ...body, script_id: decodePathSegment(collectionScriptRun[1]) }))
+        }
+        const runCancel = /^\/api\/collection\/runs\/([^/]+)\/cancel$/u.exec(requestUrl.pathname)
+        if (method === 'POST' && runCancel && typeof service.cancelCollectionRun === 'function') {
+          return sendJson(response, 200, await service.cancelCollectionRun(decodePathSegment(runCancel[1]), body))
+        }
+        const runRerun = /^\/api\/collection\/runs\/([^/]+)\/rerun$/u.exec(requestUrl.pathname)
+        if (method === 'POST' && runRerun && typeof service.rerunCollectionRun === 'function') {
+          return sendJson(response, 201, await service.rerunCollectionRun(decodePathSegment(runRerun[1]), body))
+        }
+        const runPublishPreview = /^\/api\/collection\/runs\/([^/]+)\/publish\/preview$/u.exec(requestUrl.pathname)
+        if (method === 'POST' && runPublishPreview && typeof service.previewCollectionPublish === 'function') {
+          return sendJson(response, 200, await service.previewCollectionPublish(decodePathSegment(runPublishPreview[1]), body))
+        }
+        const runPublishCommit = /^\/api\/collection\/runs\/([^/]+)\/publish\/commit$/u.exec(requestUrl.pathname)
+        if (method === 'POST' && runPublishCommit && typeof service.commitCollectionPublish === 'function') {
+          return sendJson(response, 202, await service.commitCollectionPublish(decodePathSegment(runPublishCommit[1]), body))
+        }
+        const runRetain = /^\/api\/collection\/runs\/([^/]+)\/retain$/u.exec(requestUrl.pathname)
+        if (method === 'POST' && runRetain && typeof service.retainCollectionRun === 'function') {
+          return sendJson(response, 200, await service.retainCollectionRun(decodePathSegment(runRetain[1]), body))
+        }
+        const collectionStepSkip = /^\/api\/collection\/steps\/([^/]+)\/skip$/u.exec(requestUrl.pathname)
+        if (method === 'POST' && collectionStepSkip && typeof service.skipCollectionStep === 'function') {
+          return sendJson(response, 200, await service.skipCollectionStep(decodePathSegment(collectionStepSkip[1]), body))
+        }
+        const collectorScriptId = /^\/api\/collection\/scripts\/([^/]+)$/u.exec(requestUrl.pathname)
+        if (collectorScriptId && method === 'PATCH' && typeof service.updateCollectorScript === 'function') {
+          return sendJson(response, 200, await service.updateCollectorScript(decodePathSegment(collectorScriptId[1]), body))
+        }
+        if (collectorScriptId && method === 'DELETE' && typeof service.deleteCollectorScript === 'function') {
+          return sendJson(response, 200, await service.deleteCollectorScript(decodePathSegment(collectorScriptId[1]), body))
+        }
+        const collectionWorkflowId = /^\/api\/collection\/workflows\/([^/]+)$/u.exec(requestUrl.pathname)
+        if (collectionWorkflowId && method === 'PATCH' && typeof service.updateCollectionWorkflow === 'function') {
+          return sendJson(response, 200, await service.updateCollectionWorkflow(decodePathSegment(collectionWorkflowId[1]), body))
+        }
+        if (collectionWorkflowId && method === 'DELETE' && typeof service.deleteCollectionWorkflow === 'function') {
+          return sendJson(response, 200, await service.deleteCollectionWorkflow(decodePathSegment(collectionWorkflowId[1]), body))
+        }
+        const collectionStepId = /^\/api\/collection\/steps\/([^/]+)$/u.exec(requestUrl.pathname)
+        if (collectionStepId && method === 'PATCH' && typeof service.updateCollectionWorkflowStep === 'function') {
+          return sendJson(response, 200, await service.updateCollectionWorkflowStep(decodePathSegment(collectionStepId[1]), body))
+        }
+        if (collectionStepId && method === 'DELETE' && typeof service.deleteCollectionWorkflowStep === 'function') {
+          return sendJson(response, 200, await service.deleteCollectionWorkflowStep(decodePathSegment(collectionStepId[1]), body))
         }
         const accountDecision = /^\/api\/accounts\/([^/]+)\/decision$/u.exec(requestUrl.pathname)
         if (method === 'PATCH' && accountDecision && typeof service.patchAccountDecision === 'function') {
@@ -254,7 +418,10 @@ export function createManagementServer({ service = defaultService(), token = pro
     }
 
     try {
-      if (requestUrl.pathname === '/api/session') return sendJson(response, 200, { host, tokenRequired: true, writable: Boolean(token) })
+      if (requestUrl.pathname === '/api/session') {
+        const headers = tokenResolution.source === 'persistent_file' ? { 'Set-Cookie': persistentTokenCookie(managementToken) } : {}
+        return sendJson(response, 200, { host, tokenRequired: true, writable: Boolean(managementToken), authMode: tokenResolution.source === 'persistent_file' ? 'persistent_dev_token' : tokenResolution.source === 'explicit_token' ? 'explicit_token' : 'disabled' }, headers)
+      }
       if (requestUrl.pathname === '/api/health') {
         try {
           const ping = await service.ping()
@@ -266,6 +433,50 @@ export function createManagementServer({ service = defaultService(), token = pro
         }
       }
       if (requestUrl.pathname === '/api/summary') return sendJson(response, 200, { tables: await service.summary() })
+      if (requestUrl.pathname === '/api/collection/scripts' && typeof service.listCollectorScripts === 'function') {
+        return sendJson(response, 200, await service.listCollectorScripts(Object.fromEntries(requestUrl.searchParams.entries())))
+      }
+      const collectionScriptRuns = /^\/api\/collection\/scripts\/([^/]+)\/runs$/u.exec(requestUrl.pathname)
+      if (collectionScriptRuns && typeof service.listCollectionScriptRuns === 'function') {
+        return sendJson(response, 200, await service.listCollectionScriptRuns(decodePathSegment(collectionScriptRuns[1]), Object.fromEntries(requestUrl.searchParams.entries())))
+      }
+      const collectionScriptId = /^\/api\/collection\/scripts\/([^/]+)$/u.exec(requestUrl.pathname)
+      if (collectionScriptId && typeof service.getCollectorScript === 'function') {
+        return sendJson(response, 200, await service.getCollectorScript(decodePathSegment(collectionScriptId[1])))
+      }
+      if (requestUrl.pathname === '/api/collection/workflows' && typeof service.listCollectionWorkflows === 'function') {
+        return sendJson(response, 200, await service.listCollectionWorkflows(Object.fromEntries(requestUrl.searchParams.entries())))
+      }
+      const collectionWorkflowSteps = /^\/api\/collection\/workflows\/([^/]+)\/steps$/u.exec(requestUrl.pathname)
+      if (collectionWorkflowSteps && typeof service.listCollectionWorkflowSteps === 'function') {
+        return sendJson(response, 200, await service.listCollectionWorkflowSteps(decodePathSegment(collectionWorkflowSteps[1])))
+      }
+      const collectionWorkflowId = /^\/api\/collection\/workflows\/([^/]+)$/u.exec(requestUrl.pathname)
+      if (collectionWorkflowId && typeof service.getCollectionWorkflow === 'function') {
+        return sendJson(response, 200, await service.getCollectionWorkflow(decodePathSegment(collectionWorkflowId[1])))
+      }
+      if (requestUrl.pathname === '/api/collection/runs' && typeof service.listCollectionRuns === 'function') {
+        return sendJson(response, 200, await service.listCollectionRuns(Object.fromEntries(requestUrl.searchParams.entries())))
+      }
+      if (requestUrl.pathname === '/api/collection/artifacts/candidates' && typeof service.listCollectionArtifactCandidates === 'function') {
+        return sendJson(response, 200, await service.listCollectionArtifactCandidates(Object.fromEntries(requestUrl.searchParams.entries())))
+      }
+      const collectionRunSteps = /^\/api\/collection\/runs\/([^/]+)\/steps$/u.exec(requestUrl.pathname)
+      if (collectionRunSteps && typeof service.listCollectionRunSteps === 'function') {
+        return sendJson(response, 200, await service.listCollectionRunSteps(decodePathSegment(collectionRunSteps[1]), Object.fromEntries(requestUrl.searchParams.entries())))
+      }
+      const collectionRunArtifacts = /^\/api\/collection\/runs\/([^/]+)\/artifacts$/u.exec(requestUrl.pathname)
+      if (collectionRunArtifacts && typeof service.listCollectionArtifacts === 'function') {
+        return sendJson(response, 200, await service.listCollectionArtifacts(decodePathSegment(collectionRunArtifacts[1])))
+      }
+      const collectionArtifact = /^\/api\/collection\/runs\/([^/]+)\/artifacts\/([^/]+)$/u.exec(requestUrl.pathname)
+      if (collectionArtifact && typeof service.getCollectionArtifact === 'function') {
+        return sendJson(response, 200, await service.getCollectionArtifact(decodePathSegment(collectionArtifact[1]), decodePathSegment(collectionArtifact[2]), Object.fromEntries(requestUrl.searchParams.entries())))
+      }
+      const collectionRunId = /^\/api\/collection\/runs\/([^/]+)$/u.exec(requestUrl.pathname)
+      if (collectionRunId && typeof service.getCollectionRun === 'function') {
+        return sendJson(response, 200, await service.getCollectionRun(decodePathSegment(collectionRunId[1])))
+      }
       if (requestUrl.pathname === '/api/strategy-options/accounts' && typeof service.listStrategyAccounts === 'function') {
         return sendJson(response, 200, await service.listStrategyAccounts(Object.fromEntries(requestUrl.searchParams.entries())))
       }

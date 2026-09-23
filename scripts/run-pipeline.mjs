@@ -31,12 +31,26 @@ function onlineError(resource, status = '') {
 
 export async function loadOnlineRuleSnapshot({ url, key, fetchImpl = globalThis.fetch, loadedAt = new Date().toISOString() } = {}) {
   if (!url || !key) throw new TypeError('--rules-from-supabase requires SUPABASE_URL and a server key')
-  const response = await fetchImpl(`${String(url).replace(/\/+$/u, '')}/rest/v1/filter_rules?select=id,scope,field_name,operator,value_text,value_number,enabled&order=id.asc`, {
-    headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' }
-  })
-  if (!response?.ok) throw onlineError('filter_rules', response?.status)
-  let rows
-  try { rows = await response.json() } catch { throw onlineError('filter_rules') }
+  const base = `${String(url).replace(/\/+$/u, '')}/rest/v1/filter_rules`
+  const rows = []
+  const pageSize = 1_000
+  const maxRows = 5_000
+  for (let offset = 0; offset < maxRows; offset += pageSize) {
+    const query = new URLSearchParams({ select: 'id,scope,field_name,operator,value_text,value_number,enabled', order: 'id.asc', limit: String(pageSize), offset: String(offset) })
+    const response = await fetchImpl(`${base}?${query}`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json', Prefer: 'count=exact' }
+    })
+    if (!response?.ok) throw onlineError('filter_rules', response?.status)
+    let page
+    try { page = await response.json() } catch { throw onlineError('filter_rules') }
+    if (!Array.isArray(page)) throw onlineError('filter_rules')
+    rows.push(...page)
+    const totalMatch = /\/(\d+)$/u.exec(response.headers?.get?.('content-range') || '')
+    const total = totalMatch ? Number(totalMatch[1]) : null
+    if (total !== null && total > maxRows) throw onlineError('filter_rules', 'capacity exceeded')
+    if ((total !== null && rows.length >= total) || page.length < pageSize) return createRuleSnapshot(rows, { source: 'supabase', loadedAt })
+  }
+  if (rows.length >= maxRows) throw onlineError('filter_rules', 'capacity cannot be verified within 5000 rows')
   return createRuleSnapshot(rows, { source: 'supabase', loadedAt })
 }
 

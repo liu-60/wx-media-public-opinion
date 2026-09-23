@@ -44,6 +44,7 @@ import {
 import {
   CheckOutlined,
   DeleteOutlined,
+  DeploymentUnitOutlined,
   DownOutlined,
   EditOutlined,
   EyeOutlined,
@@ -62,6 +63,7 @@ import { createApiClient, createTokenStore } from './public/api-client.mjs'
 import { normalizeMultipleValue, normalizeRuleEditorValues, serializeDateValue } from './public/form-serializers.mjs'
 import { getBodyPopupContainer } from './public/popup-containers.mjs'
 import { StrategyPage } from './strategy/strategy-app.jsx'
+import { CollectionPage } from './collection/CollectionPage.jsx'
 import {
   ACCOUNT_FIELD_LABELS,
   ARTICLE_FIELD_LABELS,
@@ -89,7 +91,8 @@ const NAV_ITEMS = Object.freeze([
   { key: 'articles', label: '文章管理', icon: <FileTextOutlined /> },
   { key: 'rules', label: '过滤规则', icon: <FilterOutlined /> },
   { key: 'hotwords', label: '热词管理', icon: <FireOutlined /> },
-  { key: 'strategies', label: '采集策略', icon: <SettingOutlined /> }
+  { key: 'strategies', label: '采集策略', icon: <SettingOutlined /> },
+  { key: 'collection', label: '采集编排', icon: <DeploymentUnitOutlined /> }
 ])
 
 const VIEW_META = Object.freeze(Object.fromEntries(NAV_ITEMS.map(item => [item.key, item])))
@@ -575,8 +578,10 @@ function RuleEditorDrawer({ open, item, groups, canWrite, onClose, onSaved }) {
   const [saving, setSaving] = useState(false)
   const scope = Form.useWatch('scope', form)
   const fieldName = Form.useWatch('field_name', form)
+  const operator = Form.useWatch('operator', form)
   const availableGroups = groups.filter(group => !scope || group.scope === scope)
-  const selectedGroup = groups.find(group => group.scope === scope && group.field_name === fieldName)
+  const fieldGroups = groups.filter(group => group.scope === scope && group.field_name === fieldName)
+  const selectedGroup = fieldGroups.find(group => group.operator === operator) || fieldGroups[0]
   useEffect(() => {
     if (!open) return
     form.setFieldsValue(item ? { scope: item.scope, field_name: item.field_name, operator: item.operator, value: item.value_text ?? item.value_number, enabled: item.enabled !== false, remark: item.remark || '' } : { scope: 'article', field_name: 'title', operator: 'contains', value: '', enabled: true, remark: '' })
@@ -611,7 +616,7 @@ function RuleEditorDrawer({ open, item, groups, canWrite, onClose, onSaved }) {
     <Form form={form} layout="vertical" onFinish={submit}>
       <Form.Item label="规则对象" name="scope" rules={[{ required: true }]}><Select getPopupContainer={getBodyPopupContainer} options={Object.entries(RULE_SCOPE_LABELS).map(([value, label]) => ({ value, label }))} /></Form.Item>
       <Form.Item label="业务字段" name="field_name" rules={[{ required: true }]}><Select getPopupContainer={getBodyPopupContainer} options={[...new Map(availableGroups.map(group => [group.field_name, { value: group.field_name, label: RULE_FIELD_LABELS[group.field_name] || group.label }])).values()]} /></Form.Item>
-      <Form.Item label="条件" name="operator" rules={[{ required: true }]}><Select getPopupContainer={getBodyPopupContainer} options={OPERATOR_OPTIONS.filter(option => selectedGroup ? (selectedGroup.type === 'number' ? ['eq', 'gt', 'gte', 'lt', 'lte'].includes(option.value) : ['contains', 'not_contains', 'eq'].includes(option.value)) : true)} /></Form.Item>
+      <Form.Item label="条件" name="operator" rules={[{ required: true }]}><Select getPopupContainer={getBodyPopupContainer} options={OPERATOR_OPTIONS.filter(option => fieldGroups.some(group => group.operator === option.value))} /></Form.Item>
       <Form.Item label={selectedGroup?.type === 'number' ? '数值' : '规则值'} name="value" rules={[{ required: true, message: '请输入规则值' }]}>{selectedGroup?.type === 'number' ? <InputNumber style={{ width: '100%' }} min={0} /> : <Input />}</Form.Item>
       <Form.Item label="是否启用" name="enabled" valuePropName="checked"><Switch /></Form.Item>
       <Form.Item label="备注" name="remark"><Input.TextArea rows={3} maxLength={255} /></Form.Item>
@@ -852,9 +857,20 @@ function HotwordsPage({ canWrite, refreshKey }) {
 function ManagementApp() {
   const [view, setView] = useState(() => new URL(window.location.href).searchParams.get('view') || 'accounts')
   const [token, setToken] = useState(tokenStore.get())
+  const [persistentSession, setPersistentSession] = useState(false)
   const [health, setHealth] = useState({ loading: true, ready: false, label: '连接检查中' })
   const [refreshKey, setRefreshKey] = useState(0)
-  const canWrite = health.ready && Boolean(token.trim())
+  const canWrite = health.ready && (Boolean(token.trim()) || persistentSession)
+
+  const bootstrapSession = async () => {
+    try {
+      const response = await fetch('/api/session', { headers: { Accept: 'application/json' } })
+      const result = await response.json().catch(() => ({}))
+      setPersistentSession(response.ok && result.authMode === 'persistent_dev_token' && result.writable === true)
+    } catch {
+      setPersistentSession(false)
+    }
+  }
 
   const refreshHealth = async () => {
     setHealth({ loading: true, ready: false, label: '连接检查中' })
@@ -875,16 +891,18 @@ function ManagementApp() {
   const refreshAll = () => {
     api.clear()
     setRefreshKey(value => value + 1)
+    bootstrapSession()
     refreshHealth()
   }
   useEffect(() => {
     const onPopState = () => setView(new URL(window.location.href).searchParams.get('view') || 'accounts')
     window.addEventListener('popstate', onPopState)
+    bootstrapSession()
     refreshHealth()
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
-  const page = view === 'accounts' ? <AccountsPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'articles' ? <ArticlesPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'rules' ? <RulesPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'hotwords' ? <HotwordsPage canWrite={canWrite} refreshKey={refreshKey} /> : <StrategyPage canWrite={canWrite} refreshKey={refreshKey} />
+  const page = view === 'accounts' ? <AccountsPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'articles' ? <ArticlesPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'rules' ? <RulesPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'hotwords' ? <HotwordsPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'strategies' ? <StrategyPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'collection' ? <CollectionPage canWrite={canWrite} refreshKey={refreshKey} /> : <AccountsPage canWrite={canWrite} refreshKey={refreshKey} />
   return <Layout className="management-layout">
     <Sider width={224} theme="dark" className="management-sider">
       <div className="management-brand"><span className="management-brand-mark">W</span><span>配置管理中心</span></div>
@@ -894,7 +912,7 @@ function ManagementApp() {
     <Layout>
       <Header className="management-header">
         <div><Typography.Text className="page-eyebrow">WECHAT MEDIA OPINION</Typography.Text><Typography.Title level={4}>{VIEW_META[view]?.label || '配置管理中心'}</Typography.Title></div>
-    <Space size={12} wrap><Tag color={health.loading ? 'processing' : health.ready ? 'success' : 'error'} icon={<Badge status={health.ready ? 'success' : health.loading ? 'processing' : 'error'} />}>{health.label}</Tag><Input.Password value={token} onChange={event => { const value = event.target.value; setToken(value); tokenStore.set(value) }} placeholder="本机令牌" aria-label="本机令牌" autoComplete="off" className="management-token-input" /><Tooltip getPopupContainer={getBodyPopupContainer} title="刷新连接状态和当前页面"><Button icon={<ReloadOutlined />} onClick={refreshAll}>刷新</Button></Tooltip></Space>
+    <Space size={12} wrap><Tag color={health.loading ? 'processing' : health.ready ? 'success' : 'error'} icon={<Badge status={health.ready ? 'success' : health.loading ? 'processing' : 'error'} />}>{health.label}</Tag>{persistentSession ? <Tag color="blue">本机持久令牌已启用</Tag> : null}<Input.Password value={token} onChange={event => { const value = event.target.value; setToken(value); tokenStore.set(value) }} placeholder={persistentSession ? '已自动启用本机令牌' : '本机令牌'} aria-label="本机令牌" autoComplete="off" className="management-token-input" /><Tooltip getPopupContainer={getBodyPopupContainer} title="刷新连接状态和当前页面"><Button icon={<ReloadOutlined />} onClick={refreshAll}>刷新</Button></Tooltip></Space>
       </Header>
       <Content className="management-content"><div key={view} className="management-content-inner">{page}</div></Content>
     </Layout>

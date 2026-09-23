@@ -10,7 +10,8 @@ const FIELD_DEFINITIONS = [
   { scope: 'article', field_name: 'title', label: '标题', business_field: 'articles.title', type: 'text', operators: ['contains', 'not_contains', 'eq'] },
   { scope: 'article', field_name: 'read_count', label: '阅读', business_field: 'articles.read_num', type: 'number', operators: ['eq', 'gt', 'gte', 'lt', 'lte'] },
   { scope: 'article', field_name: 'like_count', label: '点赞', business_field: 'articles.like_num', type: 'number', operators: ['eq', 'gt', 'gte', 'lt', 'lte'] },
-  { scope: 'article', field_name: 'comment_count', label: '评论', business_field: 'articles.comment_num', type: 'number', operators: ['eq', 'gt', 'gte', 'lt', 'lte'] }
+  { scope: 'article', field_name: 'comment_count', label: '评论', business_field: 'articles.comment_num', type: 'number', operators: ['eq', 'gt', 'gte', 'lt', 'lte'] },
+  { scope: 'hotword', field_name: 'hotword', label: '热词', business_field: 'hotwords.hotword', type: 'text', operators: ['exact', 'contains'] }
 ]
 
 function deepFreeze(value) {
@@ -345,7 +346,7 @@ export function createRulesService({ client, now = () => new Date().toISOString(
     const { page, pageSize, offset } = validation.parsePageQuery(input)
     const filters = []
     if (input.scope !== undefined && input.scope !== '') {
-      if (!['account', 'article'].includes(input.scope)) invalid('INVALID_ENUM')
+      if (!['account', 'article', 'hotword'].includes(input.scope)) invalid('INVALID_ENUM')
       filters.push({ column: 'scope', operator: 'eq', value: input.scope })
     }
     if (input.field_name !== undefined && input.field_name !== '') {
@@ -354,7 +355,7 @@ export function createRulesService({ client, now = () => new Date().toISOString(
       filters.push({ column: 'field_name', operator: 'eq', value: input.field_name })
     }
     if (input.operator !== undefined && input.operator !== '') {
-      if (!['contains', 'not_contains', 'eq', 'gt', 'gte', 'lt', 'lte'].includes(input.operator)) invalid('INVALID_ENUM')
+      if (!['exact', 'contains', 'not_contains', 'eq', 'gt', 'gte', 'lt', 'lte'].includes(input.operator)) invalid('INVALID_ENUM')
       if (input.scope !== undefined && input.scope !== '' && !RULE_GROUPS.some(group => group.scope === input.scope && group.operator === input.operator)) invalid('INVALID_ENUM')
       if (input.field_name !== undefined && input.field_name !== '' && !RULE_GROUPS.some(group => group.field_name === input.field_name && group.operator === input.operator && (input.scope === undefined || input.scope === '' || group.scope === input.scope))) invalid('INVALID_ENUM')
       filters.push({ column: 'operator', operator: 'eq', value: input.operator })
@@ -371,6 +372,12 @@ export function createRulesService({ client, now = () => new Date().toISOString(
       count: 'exact'
     })
     return { items: resultRows(result).map(row => normalizeStoredRow(row)), total: result?.total ?? null, page, pageSize }
+  }
+
+  async function getRule(idInput) {
+    const id = normalizeId(idInput)
+    const result = await client.get('filter_rules', id, { columns: RULE_COLUMNS })
+    return { item: normalizeStoredRow(result?.data) }
   }
 
   async function listRuleGroups() {
@@ -522,7 +529,7 @@ export function createRulesService({ client, now = () => new Date().toISOString(
     return { id, count: 1, deleted: true }
   }
 
-  return Object.freeze({ listRules, listRuleGroups, buildRuleGroupDiff, saveRuleGroup, createRule, updateRule, deleteRule })
+  return Object.freeze({ listRules, getRule, listRuleGroups, buildRuleGroupDiff, saveRuleGroup, createRule, updateRule, deleteRule })
 }
 
 export const createFilterRulesService = createRulesService

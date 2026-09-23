@@ -64,11 +64,21 @@ export function createApiClient({ fetchImpl = globalThis.fetch, getToken = () =>
 
 export function createTokenStore(storageKey = 'managementToken', storage = null) {
   const getStorage = () => {
-    try { return storage || globalThis.sessionStorage } catch { return null }
+    try { return storage || globalThis.localStorage } catch { return null }
+  }
+  const getLegacyStorage = () => {
+    try { return storage ? null : globalThis.sessionStorage } catch { return null }
   }
   return Object.freeze({
     get: () => {
-      try { return getStorage()?.getItem(storageKey) || '' } catch { return '' }
+      try {
+        const target = getStorage()
+        const current = target?.getItem(storageKey) || ''
+        if (current) return current
+        const legacy = getLegacyStorage()?.getItem(storageKey) || ''
+        if (legacy && target) target.setItem(storageKey, legacy)
+        return legacy
+      } catch { return '' }
     },
     set: value => {
       try {

@@ -66,3 +66,16 @@ test('persistent article comment rule accepts comment_num, commentNum, and comme
     assert.equal(module.evaluatePersistedRules({}, article, rules).ruleId, 103)
   }
 })
+
+test('hotword exact rules are valid in shared snapshots but never affect article filtering', async () => {
+  const { createRuleSnapshot, evaluatePersistedRules } = await import('../src/article-filter.mjs')
+  const rules = [
+    { id: 201, scope: 'hotword', field_name: 'hotword', operator: 'exact', value_text: '中国', value_number: null, enabled: true },
+    { id: 202, scope: 'article', field_name: 'title', operator: 'contains', value_text: '风险词', value_number: null, enabled: true }
+  ]
+  const snapshot = createRuleSnapshot(rules)
+
+  assert.equal(snapshot.count, 2)
+  assert.deepEqual(evaluatePersistedRules({}, { title: '中国的普通文章' }, snapshot.rules), { filtered: false, ruleId: '', reasons: [] })
+  assert.equal(evaluatePersistedRules({}, { title: '风险词标题' }, snapshot.rules).ruleId, 202)
+})
