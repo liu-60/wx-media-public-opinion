@@ -103,13 +103,15 @@ function accountOption(item) {
     key: item.key,
     name: item.name || '未命名公众号',
     avatar: item.avatar || null,
-    averageReading: item.averageReading ?? null,
+    activeDays: item.activeDays ?? null,
+    medianReading: item.medianReading ?? null,
     target: {
       account_id: Number(item.id),
       wx_biz: item.key,
       wx_name: item.name,
       avatar: item.avatar || null,
-      ...(item.averageReading === null || item.averageReading === undefined ? {} : { read_avg: Number(item.averageReading) })
+      ...(item.activeDays === null || item.activeDays === undefined ? {} : { active_days: Number(item.activeDays) }),
+      ...(item.medianReading === null || item.medianReading === undefined ? {} : { read_median: Number(item.medianReading) })
     }
   }
 }
@@ -237,7 +239,7 @@ const TargetSelector = memo(function TargetSelector({ kind, field, label, hint, 
     const merged = new Map()
     for (const target of selected) {
       const value = optionValue(target, isAccount ? 'account' : kind)
-      const option = optionsByValue.get(value) || (isAccount ? accountOption({ id: target.account_id, key: target.wx_biz, name: target.wx_name, avatar: target.avatar, averageReading: target.read_avg }) : typeOption(String(target)))
+      const option = optionsByValue.get(value) || (isAccount ? accountOption({ id: target.account_id, key: target.wx_biz, name: target.wx_name, avatar: target.avatar, activeDays: target.active_days, medianReading: target.read_median }) : typeOption(String(target)))
       merged.set(String(option.value), option)
     }
     for (const option of options) {
@@ -263,7 +265,7 @@ const TargetSelector = memo(function TargetSelector({ kind, field, label, hint, 
       options={mergedOptions}
       onSearch={onSearch}
       onChange={values => onChange(values.map(value => optionMap.get(String(value))?.target ?? value))}
-      optionRender={option => isAccount ? <Space><Avatar size="small" src={safeImage(option.data.avatar)}>{String(option.data.label || '公').slice(0, 1)}</Avatar><span><strong>{option.data.label}</strong>{option.data.averageReading !== undefined ? <Typography.Text type="secondary"> · 平均阅读 {formatMetric(option.data.averageReading)}</Typography.Text> : null}</span></Space> : <Space>{TYPE_ICONS[kind] || <FireOutlined />}<span>{option.data.label}</span></Space>}
+      optionRender={option => isAccount ? <Space><Avatar size="small" src={safeImage(option.data.avatar)}>{String(option.data.label || '公').slice(0, 1)}</Avatar><span><strong>{option.data.label}</strong>{option.data.activeDays !== undefined ? <Typography.Text type="secondary"> · 活跃天数 {option.data.activeDays === null ? '—' : `${formatMetric(option.data.activeDays)} 天`}</Typography.Text> : null}</span></Space> : <Space>{TYPE_ICONS[kind] || <FireOutlined />}<span>{option.data.label}</span></Space>}
       tagRender={props => isAccount ? <Tag bordered={false} icon={avatarFor(optionMap.get(String(props.value)) || { name: props.label }, 'small')}>{props.label}</Tag> : <Tag bordered={false}>{props.label}</Tag>}
     />
   </Form.Item>

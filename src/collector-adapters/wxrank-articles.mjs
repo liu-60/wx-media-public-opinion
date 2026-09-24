@@ -51,7 +51,7 @@ export async function fetchWxRankArticleList({
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), Math.max(1_000, Number(timeoutMs) || 15_000))
   try {
-    response = await fetchImpl(endpoint, { method: 'POST', headers: { accept: 'application/json', 'content-type': 'application/json' }, body: JSON.stringify(payload), signal: controller.signal })
+    response = await fetchImpl(endpoint, { method: 'POST', headers: { accept: 'application/json', 'content-type': 'application/json' }, body: JSON.stringify(payload), redirect: 'error', signal: controller.signal })
     try { body = await response.json() } catch { parseError = true }
   } catch (error) {
     return { status: 'failed', error_code: controller.signal.aborted ? 'UPSTREAM_TIMEOUT' : 'HTTP_ERROR', message: controller.signal.aborted ? `WxRank artlist timed out after ${timeoutMs}ms` : (error?.message || 'WxRank artlist request failed'), request_count: 1, request: safeRequest(payload), data: { cursor: null, total: 0, list: [] } }

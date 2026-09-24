@@ -71,7 +71,12 @@ export function runPipeline({
       decisions.push(record)
       normalizedArticles.push({ ...article, account_id: accountWithDecision?.account_id || null })
     }
-    const hotwordRows = stages.collectHotwords(normalizedArticles)
+    // Article-only filter runs explicitly disable both hotword persistence and
+    // hotword output. Avoid building the expensive n-gram aggregation in that
+    // mode; regular pipeline runs retain the existing hotword behavior.
+    const hotwordRows = persistHotwordsStage || includeHotwordRows
+      ? stages.collectHotwords(normalizedArticles)
+      : []
     if (persistHotwordsStage) stages.persistHotwords(hotwordRows)
     db.exec('COMMIT')
     const statusCounts = Object.fromEntries([...new Set(decisions.map(item => item.status))].map(status => [status, decisions.filter(item => item.status === status).length]))

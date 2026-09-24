@@ -239,12 +239,7 @@ function strategyDto(row) {
 function strategyCasFilters(row) {
   return [
     { column: 'id', operator: 'eq', value: row.id },
-    { column: 'updated_at', operator: row.updated_at === null ? 'is' : 'eq', value: row.updated_at },
-    ...STRATEGY_CONFIG_COLUMNS.map(column => ({
-      column,
-      operator: row[column] === null || row[column] === undefined ? 'is' : 'eq',
-      value: row[column] === undefined ? null : clone(row[column])
-    }))
+    { column: 'updated_at', operator: row.updated_at === null ? 'is' : 'eq', value: row.updated_at }
   ]
 }
 

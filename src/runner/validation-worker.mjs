@@ -9,7 +9,7 @@ const WORKER_ENTRYPOINT = path.join(PROJECT_ROOT, 'scripts', 'run-collector-work
  * 启动一次指定 Run 的现有 Collector Worker。启动成功只代表子进程已创建，
  * 真正的业务结果仍由 Runner 写回 collection_runs/step_runs。
  */
-export function createValidationWorkerStarter({ rootDir = PROJECT_ROOT, workerEntrypoint = WORKER_ENTRYPOINT, env = process.env } = {}) {
+export function createValidationWorkerStarter({ rootDir = PROJECT_ROOT, workerEntrypoint = WORKER_ENTRYPOINT, env = process.env, envProvider = null } = {}) {
   return ({ runId, workerId = `validation-worker-${process.pid}-${Date.now()}`, leaseSeconds = 120 } = {}) => new Promise((resolve, reject) => {
     if (!runId) {
       const error = new Error('runId is required')
@@ -17,9 +17,10 @@ export function createValidationWorkerStarter({ rootDir = PROJECT_ROOT, workerEn
       reject(error)
       return
     }
+    const childEnv = typeof envProvider === 'function' ? envProvider() : env
     const child = spawn(process.execPath, [workerEntrypoint, '--remote', '--run-id', String(runId), '--worker-id', String(workerId), '--lease-seconds', String(leaseSeconds), '--allow-untracked-local'], {
       cwd: rootDir,
-      env: { ...env },
+      env: { ...childEnv },
       stdio: 'ignore',
       windowsHide: true,
       detached: false,

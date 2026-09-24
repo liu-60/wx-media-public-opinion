@@ -27,7 +27,8 @@ export function accountTargetFromOption(item) {
     wx_biz: item.key,
     wx_name: item.name,
     avatar: item.avatar ?? null,
-    ...(item.averageReading === null || item.averageReading === undefined ? {} : { read_avg: Number(item.averageReading) })
+    ...(item.activeDays === null || item.activeDays === undefined ? {} : { active_days: Number(item.activeDays) }),
+    ...(item.medianReading === null || item.medianReading === undefined ? {} : { read_median: Number(item.medianReading) })
   }
 }
 
@@ -55,7 +56,7 @@ export function mountAccountMultiSelect(root, {
     targetKey: accountTargetKey,
     filterOptions,
     targetFromOption: accountTargetFromOption,
-    renderOption: item => `<span class="strategy-option-main">${avatarMarkup(item, { esc, safeUrl })}<span class="strategy-option-copy"><strong>${esc(accountName(item))}</strong><small>平均阅读 ${esc(numberText(item.averageReading))}</small></span></span>`,
+    renderOption: item => `<span class="strategy-option-main">${avatarMarkup(item, { esc, safeUrl })}<span class="strategy-option-copy"><strong>${esc(accountName(item))}</strong><small>活跃天数 ${esc(item.activeDays === null || item.activeDays === undefined ? '—' : `${numberText(item.activeDays)} 天`)}</small></span></span>`,
     renderChip: target => `<span class="strategy-chip-main">${avatarMarkup({ name: target?.wx_name, avatar: target?.avatar }, { esc, safeUrl, sizeClass: 'strategy-avatar-small' })}<span>${esc(accountName(target))}</span></span>`,
     onChange,
     onOptions
@@ -69,6 +70,7 @@ export function accountTargetPresentation(target, accountOptions = new Map()) {
     key: target?.wx_biz,
     name: target?.wx_name || '未命名公众号',
     avatar: target?.avatar || null,
-    averageReading: target?.read_avg ?? null
+    activeDays: target?.active_days ?? null,
+    medianReading: target?.read_median ?? null
   }
 }

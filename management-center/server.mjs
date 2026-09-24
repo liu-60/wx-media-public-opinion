@@ -12,7 +12,8 @@ import { createWorkflowService } from './services/workflows.mjs'
 import { createCollectionRunService } from './services/collection-runs.mjs'
 import { createCollectionArtifactService } from './services/collection-artifacts.mjs'
 import { createCollectionPublishService } from './services/collection-publish.mjs'
-import { startValidationWorker } from '../src/runner/validation-worker.mjs'
+import { createCollectorCredentialStore } from './services/collector-credentials.mjs'
+import { createValidationWorkerStarter } from '../src/runner/validation-worker.mjs'
 
 const MAX_BODY_BYTES = 1024 * 1024
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url))
@@ -129,6 +130,8 @@ function unavailableService() {
     createCollectorScript: unavailable,
     updateCollectorScript: unavailable,
     deleteCollectorScript: unavailable,
+    getCollectorCredential: unavailable,
+    setCollectorCredential: unavailable,
     createCollectionScriptRun: unavailable,
     listCollectionScriptRuns: unavailable,
     listCollectionWorkflows: unavailable,
@@ -175,8 +178,14 @@ function defaultService() {
   const client = createSupabaseClient({ url, key })
   const collectionDb = createCollectionDb({ url, key })
   const collectors = createCollectorService({ client: collectionDb })
+  const credentials = createCollectorCredentialStore()
   const workflows = createWorkflowService({ client: collectionDb })
-  const runs = createCollectionRunService({ client: collectionDb, startValidationRun: startValidationWorker })
+  const runs = createCollectionRunService({
+    client: collectionDb,
+    startValidationRun: createValidationWorkerStarter({
+      envProvider: () => ({ ...process.env, ...credentials.toEnvironment() })
+    })
+  })
   const artifacts = createCollectionArtifactService({ root: path.resolve('data/collection-runs'), runService: runs })
   const publish = createCollectionPublishService({ artifactService: artifacts, runService: runs })
   return Object.freeze({
@@ -187,6 +196,8 @@ function defaultService() {
     createCollectorScript: collectors.create,
     updateCollectorScript: collectors.update,
     deleteCollectorScript: collectors.remove,
+    getCollectorCredential: credentials.get,
+    setCollectorCredential: credentials.set,
     createCollectionScriptRun: runs.createScriptRun,
     listCollectionScriptRuns: runs.scriptRuns,
     listCollectionWorkflows: workflows.list,
@@ -331,6 +342,10 @@ export function createManagementServer({ service = defaultService(), token, toke
         if (collectorScriptId && method === 'DELETE' && typeof service.deleteCollectorScript === 'function') {
           return sendJson(response, 200, await service.deleteCollectorScript(decodePathSegment(collectorScriptId[1]), body))
         }
+        const collectorCredential = /^\/api\/collection\/credentials\/([^/]+)$/u.exec(requestUrl.pathname)
+        if (collectorCredential && (method === 'PUT' || method === 'PATCH') && typeof service.setCollectorCredential === 'function') {
+          return sendJson(response, 200, await service.setCollectorCredential(decodePathSegment(collectorCredential[1]), body?.value))
+        }
         const collectionWorkflowId = /^\/api\/collection\/workflows\/([^/]+)$/u.exec(requestUrl.pathname)
         if (collectionWorkflowId && method === 'PATCH' && typeof service.updateCollectionWorkflow === 'function') {
           return sendJson(response, 200, await service.updateCollectionWorkflow(decodePathSegment(collectionWorkflowId[1]), body))
@@ -435,6 +450,10 @@ export function createManagementServer({ service = defaultService(), token, toke
       if (requestUrl.pathname === '/api/summary') return sendJson(response, 200, { tables: await service.summary() })
       if (requestUrl.pathname === '/api/collection/scripts' && typeof service.listCollectorScripts === 'function') {
         return sendJson(response, 200, await service.listCollectorScripts(Object.fromEntries(requestUrl.searchParams.entries())))
+      }
+      const collectorCredential = /^\/api\/collection\/credentials\/([^/]+)$/u.exec(requestUrl.pathname)
+      if (collectorCredential && typeof service.getCollectorCredential === 'function') {
+        return sendJson(response, 200, await service.getCollectorCredential(decodePathSegment(collectorCredential[1])))
       }
       const collectionScriptRuns = /^\/api\/collection\/scripts\/([^/]+)\/runs$/u.exec(requestUrl.pathname)
       if (collectionScriptRuns && typeof service.listCollectionScriptRuns === 'function') {

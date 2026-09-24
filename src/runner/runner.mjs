@@ -62,7 +62,9 @@ export async function runWorkflow({ run, store, executeStep, manualSkips = {}, i
         ? requiredContracts.map(requirement => availableArtifacts.find(value => artifactTypeMatches(requirement, value) && (!requirement.artifact_id || (value.artifact_id || value.id) === requirement.artifact_id))).filter(Boolean)
         : availableArtifacts
     const stepInput = { ...input, input_artifacts: selectedArtifacts }
-    const maxAttempts = 1 + Math.max(0, Number(step.retry_count || 0))
+    const maxAttempts = step.script_snapshot?.script_key === 'wxrank-strategy'
+      ? 1
+      : 1 + Math.max(0, Number(step.retry_count || 0))
     let finalResult = null
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       if (!await store.assertLease(run.id)) await stopForLease()

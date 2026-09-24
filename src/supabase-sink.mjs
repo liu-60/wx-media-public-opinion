@@ -298,7 +298,7 @@ export function createSupabaseRestSink({ url, key, fetchImpl = globalThis.fetch 
     return result
   }
 
-  async function postBatches(table, rows, query = '') {
+  async function postBatches(table, rows, query = '', resolution = 'merge-duplicates') {
     const result = []
     // PostgREST requires every object in one JSON array to have the same key
     // set.  Payloads intentionally omit unknown fields so that existing
@@ -316,7 +316,7 @@ export function createSupabaseRestSink({ url, key, fetchImpl = globalThis.fetch 
         method: 'POST',
         query,
         body: part,
-        prefer: 'resolution=merge-duplicates,return=representation,missing=default'
+        prefer: `resolution=${resolution},return=representation,missing=default`
       })
       result.push(...responseRows(payload))
     }
@@ -325,25 +325,35 @@ export function createSupabaseRestSink({ url, key, fetchImpl = globalThis.fetch 
 
   return {
     async write(writeSet) {
-      const existingAccounts = await fetchAccounts(writeSet.accounts.map(item => item.wx_biz))
+      const accountItems = Array.isArray(writeSet.accounts) ? writeSet.accounts : []
+      const articleItems = Array.isArray(writeSet.articles) ? writeSet.articles : []
+      const accountWxBizes = unique([
+        ...accountItems.map(item => item.wx_biz),
+        ...articleItems.map(item => item.wx_biz)
+      ])
+      const existingAccounts = await fetchAccounts(accountWxBizes)
       const existingByBiz = new Map(existingAccounts.map(row => [row.wx_biz, row]))
-      const accountPayloads = writeSet.accounts.map(item => {
+      const accountInsertOnly = writeSet.account_insert_only === true
+      const accountsToWrite = accountInsertOnly ? accountItems.filter(item => !existingByBiz.has(item.wx_biz)) : accountItems
+      const accountPayloads = accountsToWrite.map(item => {
         const existing = existingByBiz.get(item.wx_biz)
         const payload = { wx_biz: item.wx_biz }
         for (const field of ACCOUNT_FIELDS) payload[field] = hasValue(item.account[field]) ? item.account[field] : existing?.[field]
         payload.updated_at = item.account.updated_at || existing?.updated_at
         return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
       })
-      const upsertedAccounts = await postBatches('accounts', accountPayloads, '?on_conflict=wx_biz')
+      const upsertedAccounts = await postBatches('accounts', accountPayloads, '?on_conflict=wx_biz', accountInsertOnly ? 'ignore-duplicates' : 'merge-duplicates')
+      const insertedWxBizes = new Set(upsertedAccounts.map(row => row.wx_biz))
       const accountByBiz = new Map([...existingAccounts, ...upsertedAccounts].map(row => [row.wx_biz, row.account_id]))
-      if (accountByBiz.size < writeSet.accounts.length) {
-        const refreshed = await fetchAccounts(writeSet.accounts.map(item => item.wx_biz))
+      if (accountWxBizes.some(wxBiz => !accountByBiz.has(wxBiz))) {
+        const refreshed = await fetchAccounts(accountWxBizes)
         for (const row of refreshed) accountByBiz.set(row.wx_biz, row.account_id)
       }
 
-      const existingProfiles = await fetchProfiles([...accountByBiz.values()])
+      const profileItems = accountInsertOnly ? accountsToWrite.filter(item => insertedWxBizes.has(item.wx_biz)) : accountsToWrite
+      const existingProfiles = await fetchProfiles(profileItems.map(item => accountByBiz.get(item.wx_biz)))
       const existingProfileById = new Map(existingProfiles.map(row => [String(row.account_id), row]))
-      const profiles = writeSet.accounts.map(item => {
+      const profiles = profileItems.map(item => {
         const accountId = accountByBiz.get(item.wx_biz)
         if (!accountId) throw new Error(`Supabase account_id not found for wx_biz ${item.wx_biz}`)
         const existing = existingProfileById.get(String(accountId)) || {}
@@ -356,15 +366,16 @@ export function createSupabaseRestSink({ url, key, fetchImpl = globalThis.fetch 
       })
       await postBatches('account_profiles', profiles, '?on_conflict=account_id')
 
-      const articles = writeSet.articles.map(article => ({
+      const articles = articleItems.map(article => ({
         ...article,
         account_id: article.wx_biz ? accountByBiz.get(article.wx_biz) || null : null
       })).map(({ wx_biz, ...article }) => article)
       await postBatches('articles', articles, '?on_conflict=account_id,article_sn')
-      await postBatches('hotwords', writeSet.hotwords, '?on_conflict=hotword,stat_date')
+      await postBatches('hotwords', writeSet.hotwords || [], '?on_conflict=hotword,stat_date')
 
       return {
-        accountCount: writeSet.accounts.length,
+        accountCount: accountInsertOnly ? insertedWxBizes.size : accountsToWrite.length,
+        accountSkippedCount: accountInsertOnly ? accountItems.length - insertedWxBizes.size : 0,
         profileCount: profiles.length,
         articleCount: articles.length,
         hotwordCount: writeSet.hotwords.length,

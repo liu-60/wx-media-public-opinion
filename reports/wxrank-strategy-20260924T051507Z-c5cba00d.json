@@ -1,0 +1,267 @@
+{
+  "status": "skipped_cursor_zero",
+  "request_plan": {
+    "request_limit": 4,
+    "configured_hard_limit": 4,
+    "expected_requests": 0,
+    "expectedRequests": 0,
+    "within_limit": true,
+    "withinLimit": true,
+    "strategies": [
+      {
+        "strategy_id": 1,
+        "request_type": "account",
+        "active_targets": [
+          {
+            "target_key": "account:320",
+            "target": {
+              "wx_biz": "MjM5MTM2Mjk4MQ==",
+              "wx_name": "嬉游",
+              "read_avg": 95057,
+              "account_id": 320
+            },
+            "page_budget": 0
+          },
+          {
+            "target_key": "account:7727",
+            "target": {
+              "wx_biz": "MzU0Nzk1MzU1NA==",
+              "wx_name": "刘晓博说财经",
+              "read_avg": 83117,
+              "account_id": 7727
+            },
+            "page_budget": 0
+          },
+          {
+            "target_key": "account:6312",
+            "target": {
+              "wx_biz": "MzI4ODc0MTQyOQ==",
+              "wx_name": "十锤星人",
+              "read_avg": 72539,
+              "account_id": 6312
+            },
+            "page_budget": 0
+          }
+        ],
+        "cursor_budget": 0,
+        "expected_requests": 0,
+        "status": "disabled_cursor_zero"
+      },
+      {
+        "strategy_id": 2,
+        "request_type": "wx_type",
+        "active_targets": [
+          {
+            "target_key": "type:财富",
+            "target": "财富",
+            "page_budget": 0
+          }
+        ],
+        "cursor_budget": 0,
+        "expected_requests": 0,
+        "status": "disabled_cursor_zero"
+      }
+    ],
+    "request_preview": []
+  },
+  "request_stats": {
+    "limit": 4,
+    "planned": 0,
+    "total": 0,
+    "success": 0,
+    "failed": 0,
+    "by_strategy": {
+      "account": {
+        "planned": 0,
+        "requests": 0,
+        "success": 0,
+        "failed": 0
+      },
+      "wx_type": {
+        "planned": 0,
+        "requests": 0,
+        "success": 0,
+        "failed": 0
+      }
+    }
+  },
+  "requests": [],
+  "articles": [],
+  "duplicate_count": 0,
+  "strategies": [
+    {
+      "strategy_id": 1,
+      "strategy_type": "account",
+      "planned_objects": [
+        {
+          "wx_biz": "MjM5MTM2Mjk4MQ==",
+          "wx_name": "嬉游",
+          "read_avg": 95057,
+          "account_id": 320
+        },
+        {
+          "wx_biz": "MzU0Nzk1MzU1NA==",
+          "wx_name": "刘晓博说财经",
+          "read_avg": 83117,
+          "account_id": 7727
+        },
+        {
+          "wx_biz": "MzI4ODc0MTQyOQ==",
+          "wx_name": "十锤星人",
+          "read_avg": 72539,
+          "account_id": 6312
+        }
+      ],
+      "expected_requests": 0,
+      "completed_objects": [],
+      "completed_count": 0,
+      "next_active_targets": [
+        {
+          "wx_biz": "MjM5MTM2Mjk4MQ==",
+          "wx_name": "嬉游",
+          "read_avg": 95057,
+          "account_id": 320
+        },
+        {
+          "wx_biz": "MzU0Nzk1MzU1NA==",
+          "wx_name": "刘晓博说财经",
+          "read_avg": 83117,
+          "account_id": 7727
+        },
+        {
+          "wx_biz": "MzI4ODc0MTQyOQ==",
+          "wx_name": "十锤星人",
+          "read_avg": 72539,
+          "account_id": 6312
+        }
+      ],
+      "next_cursor": 0,
+      "next_expected_requests": 0,
+      "progress_status": "unchanged"
+    },
+    {
+      "strategy_id": 2,
+      "strategy_type": "wx_type",
+      "planned_objects": [
+        "财富"
+      ],
+      "expected_requests": 0,
+      "completed_objects": [],
+      "completed_count": 0,
+      "next_active_targets": [
+        "财富"
+      ],
+      "next_cursor": 0,
+      "next_expected_requests": 0,
+      "progress_status": "unchanged"
+    }
+  ],
+  "warnings": [],
+  "next_round_plan": {
+    "request_limit": 4,
+    "configured_hard_limit": 4,
+    "expected_requests": 0,
+    "expectedRequests": 0,
+    "within_limit": true,
+    "withinLimit": true,
+    "strategies": [
+      {
+        "strategy_id": 1,
+        "request_type": "account",
+        "active_targets": [
+          {
+            "target_key": "account:320",
+            "target": {
+              "wx_biz": "MjM5MTM2Mjk4MQ==",
+              "wx_name": "嬉游",
+              "read_avg": 95057,
+              "account_id": 320
+            },
+            "page_budget": 0
+          },
+          {
+            "target_key": "account:7727",
+            "target": {
+              "wx_biz": "MzU0Nzk1MzU1NA==",
+              "wx_name": "刘晓博说财经",
+              "read_avg": 83117,
+              "account_id": 7727
+            },
+            "page_budget": 0
+          },
+          {
+            "target_key": "account:6312",
+            "target": {
+              "wx_biz": "MzI4ODc0MTQyOQ==",
+              "wx_name": "十锤星人",
+              "read_avg": 72539,
+              "account_id": 6312
+            },
+            "page_budget": 0
+          }
+        ],
+        "cursor_budget": 0,
+        "expected_requests": 0,
+        "status": "disabled_cursor_zero"
+      },
+      {
+        "strategy_id": 2,
+        "request_type": "wx_type",
+        "active_targets": [
+          {
+            "target_key": "type:财富",
+            "target": "财富",
+            "page_budget": 0
+          }
+        ],
+        "cursor_budget": 0,
+        "expected_requests": 0,
+        "status": "disabled_cursor_zero"
+      }
+    ],
+    "request_preview": []
+  },
+  "database_strategies": [
+    {
+      "id": 1,
+      "request_type": "account",
+      "active_targets": [
+        {
+          "wx_biz": "MjM5MTM2Mjk4MQ==",
+          "wx_name": "嬉游",
+          "read_avg": 95057,
+          "account_id": 320
+        },
+        {
+          "wx_biz": "MzU0Nzk1MzU1NA==",
+          "wx_name": "刘晓博说财经",
+          "read_avg": 83117,
+          "account_id": 7727
+        },
+        {
+          "wx_biz": "MzI4ODc0MTQyOQ==",
+          "wx_name": "十锤星人",
+          "read_avg": 72539,
+          "account_id": 6312
+        }
+      ],
+      "completed_items": [],
+      "cursor": 0,
+      "cycle_no": 1,
+      "next_expected_requests": 0
+    },
+    {
+      "id": 2,
+      "request_type": "wx_type",
+      "active_targets": [
+        "财富"
+      ],
+      "completed_items": [],
+      "cursor": 0,
+      "cycle_no": 1,
+      "next_expected_requests": 0
+    }
+  ],
+  "run_id": "c5cba00d-8fcd-4181-8875-20e6aacef005",
+  "artifact_path": "C:\\Users\\Administrator\\Documents\\微信自媒体舆情\\reports\\wxrank-strategy-20260924T051507Z-c5cba00d.json"
+}

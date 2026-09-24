@@ -10,6 +10,7 @@
     "build:management-center": "node scripts/build-management-center.mjs",
     "pipeline": "node scripts/run-pipeline.mjs",
     "snapshot": "node scripts/run-wxrank-snapshot.mjs",
+    "collect:wxrank-strategy": "node scripts/collectors/wxrank-strategy.mjs --standalone",
     "collection:register": "node scripts/register-collectors.mjs",
     "collection:run": "node scripts/run-workflow.mjs",
     "collection:worker": "node scripts/run-collector-worker.mjs",

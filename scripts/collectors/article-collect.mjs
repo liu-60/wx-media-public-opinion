@@ -1,141 +1,249 @@
-import { readArtifact, runCollectorMain, writeArtifact } from '../../src/runner/script-runtime.mjs'
-import { fetchWxRankArticleList } from '../../src/collector-adapters/wxrank-articles.mjs'
+import { fetchRankedArticleSources } from '../../src/wxrank-client.mjs'
+import { articleIdentity } from '../../src/article-filter.mjs'
+import { runCollectorMain, writeArtifact } from '../../src/runner/script-runtime.mjs'
+import { createSupabaseClient } from '../../management-center/services/supabase.mjs'
+import { accountRowsFromArticles, runArticleFilterStage } from './article-filter-common.mjs'
 
-function dateKey(value) {
-  const raw = String(value || '').trim().replaceAll('-', '')
-  if (/^20\d{6}$/u.test(raw)) return raw
-  const parsed = new Date(value || Date.now())
-  return Number.isNaN(parsed.getTime()) ? new Date().toISOString().slice(0, 10).replaceAll('-', '') : parsed.toISOString().slice(0, 10).replaceAll('-', '')
+function text(value) {
+  return value === undefined || value === null ? '' : String(value).trim()
 }
 
-function dateMinusDays(value, days) {
-  const date = new Date(`${String(value).slice(0, 4)}-${String(value).slice(4, 6)}-${String(value).slice(6, 8)}T00:00:00Z`)
-  date.setUTCDate(date.getUTCDate() - days)
-  return date.toISOString().slice(0, 10).replaceAll('-', '')
+function first(row, ...keys) {
+  for (const key of keys) if (row?.[key] !== undefined && row?.[key] !== null && text(row[key])) return row[key]
+  return ''
 }
 
-function latestDateFromMessage(message, fallback) {
-  const match = /(?:不能大于|大于|latest[^0-9]*)(20\d{6})/iu.exec(String(message || ''))
-  return match ? match[1] : fallback
-}
-
-function numeric(value) {
-  if (value === undefined || value === null || value === '') return null
-  const number = Number(String(value).replaceAll(',', ''))
-  return Number.isFinite(number) ? Math.trunc(number) : null
-}
-
-function dateTime(value) {
-  if (!value) return null
-  const raw = String(value).trim()
-  const withZone = /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?$/u.test(raw) ? `${raw.replace(' ', 'T')}+08:00` : raw
-  const date = new Date(withZone)
-  return Number.isNaN(date.getTime()) ? null : date.toISOString()
-}
-
-function fromWxRank(row, { reason, requestedDate, effectiveDate }) {
-  const url = String(row.art_url || row.article_url || '').trim()
-  let parsed = {}
+function normalizeRankedArticle(row, source) {
+  const url = text(first(row, 'article_url', 'articleUrl', 'art_url', 'url', 'link'))
+  let fromUrl = {}
   try {
-    const value = new URL(url)
-    parsed = { wx_biz: value.searchParams.get('__biz') || '', article_sn: value.searchParams.get('sn') || '', mid: value.searchParams.get('mid') || '', idx: Number(value.searchParams.get('idx')) || 1 }
+    const parsed = new URL(url)
+    fromUrl = { wx_biz: parsed.searchParams.get('__biz') || '', article_sn: parsed.searchParams.get('sn') || '' }
   } catch {}
-  const readRaw = row.read_num
-  const capped = typeof readRaw === 'string' && /(?:\d+(?:\.\d+)?w\+|\d+(?:\.\d+)?万\+|100000\+)/iu.test(readRaw)
+  const readValue = first(row, 'read_num', 'readNum', 'read_count', 'read')
+  const readCapped = typeof readValue === 'string' && /(?:\d+(?:\.\d+)?w\+|\d+(?:\.\d+)?万\+|100000\+)/iu.test(readValue)
+  const articleSn = text(first(row, 'article_sn', 'articleSn', 'sn')) || fromUrl.article_sn
+  const articleId = text(first(row, 'article_id', 'articleId', 'art_id')) || articleSn || text(first(row, 'id'))
+  const wxName = text(first(row, 'wx_name', 'wxName', 'account_name', 'accountName', 'public_name', 'nickname', 'publisher'))
   return {
-    title: String(row.title || '').trim(),
-    wx_biz: String(row.wx_biz || parsed.wx_biz || '').trim() || null,
-    article_sn: String(row.sn || parsed.article_sn || '').trim() || null,
-    mid: String(parsed.mid || '').trim() || null,
-    idx: parsed.idx || 1,
+    ...row,
+    ...(articleId ? { article_id: articleId } : {}),
+    article_sn: articleSn || null,
+    wx_biz: text(first(row, 'wx_biz', 'wxBiz', '__biz', 'biz')) || fromUrl.wx_biz || null,
+    wx_name: wxName,
+    title: text(first(row, 'title', 'article_title', 'art_title', 'name')),
     article_url: url || null,
-    published_at: dateTime(row.pub_time),
-    read_num: capped ? 100001 : numeric(readRaw),
-    read_num_capped: capped,
-    like_num: numeric(row.like_num),
-    look_num: numeric(row.look_num),
-    share_num: numeric(row.share_num),
-    comment_num: null,
-    is_original: row.copyright === undefined || row.copyright === null ? null : Boolean(row.copyright),
-    publisher: String(row.wx_name || '').trim() || null,
-    wx_type: String(row.wx_type || '').trim() || null,
+    publish_time: first(row, 'publish_time', 'publishTime', 'pub_time', 'publish_date', 'published_at', 'created_at', 'date') || null,
+    read_num: readCapped ? 100001 : readValue,
+    read_num_capped: readCapped,
+    like_num: first(row, 'like_num', 'likeNum', 'like_count', 'like'),
+    look_num: first(row, 'look_num', 'lookNum', 'look_count', 'look'),
+    share_num: first(row, 'share_num', 'shareNum', 'share_count', 'share'),
+    comment_num: first(row, 'comment_num', 'commentNum', 'comment_count', 'comment'),
+    publisher: text(first(row, 'publisher', 'wx_name', 'wxName', 'account_name', 'accountName', 'nickname')),
     source_platform: 'wxrank',
-    collect_reasons: [reason],
-    requested_date: requestedDate,
-    effective_data_date: effectiveDate,
+    collect_reasons: [source],
     raw: row
   }
 }
 
-async function readStrategy(input) {
-  if (!input.strategy_snapshot_ref) return { approved_accounts: [], groups: [], request_budget: {} }
-  return readArtifact(input.workdir, input.strategy_snapshot_ref)
+function deduplicateArticles(rows) {
+  const unique = new Map()
+  for (const row of rows) {
+    const key = row.wx_biz && row.article_sn ? `${row.wx_biz}\0${row.article_sn}` : `${row.wx_biz || ''}\0${articleIdentity(row).articleId}`
+    const existing = unique.get(key)
+    if (!existing) { unique.set(key, row); continue }
+    for (const [field, value] of Object.entries(row)) {
+      if ((existing[field] === undefined || existing[field] === null || existing[field] === '') && value !== undefined && value !== null && value !== '') existing[field] = value
+    }
+    existing.collect_reasons = [...new Set([...(existing.collect_reasons || []), ...(row.collect_reasons || [])])]
+  }
+  return { rows: [...unique.values()], duplicate_count: rows.length - unique.size }
 }
 
-function addRequestPlan(plan, request, reason) {
-  plan.push({ ...request, reason })
+function articleDisplay(rows, names) {
+  const displayRows = rows.map(row => ({
+    title: text(row.title),
+    pub_time: row.publish_time ?? row.published_at ?? null,
+    wx_name: text(row.wx_name || names.get(row.wx_biz) || row.publisher) || null,
+    read_num: row.read_num ?? null,
+    like_num: row.like_num ?? null,
+    article_url: row.article_url ?? row.articleUrl ?? row.url ?? null
+  }))
+  const count = value => {
+    const normalized = text(value).replace(/,/gu, '')
+    const match = normalized.match(/^(\d+(?:\.\d+)?)\s*(万|w)?\+?$/iu)
+    if (!match) return 0
+    return Number(match[1]) * (match[2] ? 10_000 : 1)
+  }
+  return displayRows.sort((left, right) => count(right.like_num) - count(left.like_num))
+}
+
+function chunks(rows, size = 200) {
+  const parts = []
+  for (let index = 0; index < rows.length; index += size) parts.push(rows.slice(index, index + size))
+  return parts
+}
+
+async function loadExistingAccounts(accounts) {
+  const wxBizes = [...new Set(accounts.map(row => row.wx_biz).filter(Boolean))]
+  if (!wxBizes.length) return new Map()
+  const url = process.env.SUPABASE_URL
+  const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) {
+    const error = new Error('Supabase credentials are required to check existing WxRank accounts')
+    error.code = 'AUTH_REQUIRED'
+    throw error
+  }
+  const client = createSupabaseClient({ url, key })
+  const rows = []
+  for (const part of chunks(wxBizes)) {
+    const result = await client.list('accounts', {
+      columns: ['wx_biz', 'wx_name', 'updated_at'],
+      filters: [{ column: 'wx_biz', operator: 'in', value: part }],
+      limit: 5000
+    })
+    rows.push(...(Array.isArray(result.data) ? result.data : []))
+  }
+  return new Map(rows.map(row => [row.wx_biz, row]))
+}
+
+function accountStatus(accounts, existingByBiz, report) {
+  const accountFiltered = new Set((report.articles?.decisions || [])
+    .filter(row => ['ACCOUNT_FILTERED', 'ACCOUNT_UNDECIDED', 'ACCOUNT_UNMATCHED'].includes(row.status))
+    .map(row => row.wx_biz))
+  return accounts.map(({ wx_biz, account }) => {
+    const existing = existingByBiz.get(wx_biz)
+    const filtered = accountFiltered.has(wx_biz)
+    return {
+      wx_name: existing?.wx_name || account.wx_name || null,
+      wx_biz,
+      updated_at: existing?.updated_at || account.updated_at || null,
+      exists_in_database: Boolean(existing),
+      planned_action: existing ? 'skip_existing' : filtered ? 'skip_account_filter' : 'insert',
+      fields: existing || filtered ? {} : account
+    }
+  })
+}
+
+function updatePlan(writeSet, accountRows) {
+  const names = new Map(accountRows.map(({ wx_biz, wx_name }) => [wx_biz, wx_name]))
+  const accountsByBiz = new Map(writeSet.accounts.map(row => [row.wx_biz, row]))
+  const without = (value, ...keys) => Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)))
+  return {
+    conflict_keys: {
+      accounts: 'wx_biz',
+      account_profiles: 'account_id（按 wx_biz 关联）',
+      articles: 'account_id,article_sn（account_id 按 wx_biz 关联）',
+      hotwords: 'hotword,stat_date'
+    },
+    note: '数据库已有账号跳过账号和画像更新；新增账号插入。未提供的账号和画像字段沿用现值，文章 account_id 在发布阶段按 wx_biz 解析。',
+    accounts: accountRows,
+    account_profiles: writeSet.accounts.map(({ wx_biz, profile }) => ({ wx_name: names.get(wx_biz), wx_biz, fields: without(profile, 'wx_biz') })),
+    articles: writeSet.articles.map(article => ({ wx_name: names.get(article.wx_biz), title: article.title, article_sn: article.article_sn, wx_biz: article.wx_biz, fields: without(article, 'wx_biz', 'account_id') })),
+    hotwords: writeSet.hotwords.map(row => ({ hotword: row.hotword, stat_date: row.stat_date, fields: row }))
+  }
 }
 
 async function collect(input) {
   const started = Date.now()
-  const strategy = await readStrategy(input)
-  const runDate = dateKey(input.config.run_date || new Date())
-  const approved = Array.isArray(strategy.approved_accounts) ? strategy.approved_accounts.filter(row => row?.wx_biz) : []
-  const groups = Array.isArray(strategy.groups) ? strategy.groups : []
-  const probe = await fetchWxRankArticleList({ apiKey: process.env.WXRANK_API_KEY, date: runDate, fetchImpl: globalThis.fetch })
-  let requestCount = probe.request_count || 0
-  const raw = [{ plan: { date: runDate, reason: 'date_probe' }, status: probe.status, error_code: probe.error_code, response: probe.response, data: probe.data }]
-  const errors = []
-  const rows = []
-  let waitingAuth = probe.status === 'waiting_auth'
-  if (probe.status === 'waiting_auth') errors.push({ plan: { date: runDate, reason: 'date_probe' }, code: probe.error_code, message: probe.message })
-  const effectiveDate = probe.status === 'failed' && probe.error_code === 'API_BUSINESS_ERROR' ? latestDateFromMessage(probe.message, dateMinusDays(runDate, 1)) : runDate
-  const dateFallback = probe.status === 'failed' && probe.error_code === 'API_BUSINESS_ERROR' && effectiveDate !== runDate
-  if (probe.status === 'failed' && !dateFallback && probe.error_code !== 'EMPTY_RESULT') errors.push({ plan: { date: runDate, reason: 'date_probe' }, code: probe.error_code, message: probe.message })
-  if (probe.status === 'success') for (const row of probe.data?.list || []) rows.push(fromWxRank(row, { reason: 'date_today', requestedDate: runDate, effectiveDate }))
-  const plans = []
-  const budget = strategy.request_budget || {}
-  const accountLimit = Math.min(approved.length, Number(input.config.approved_account_max_requests ?? budget.approved_account ?? approved.length))
-  for (const account of approved.slice(0, Math.max(0, accountLimit))) addRequestPlan(plans, { date: effectiveDate, wxBiz: account.wx_biz }, 'approved_account')
-  const groupBudget = groups.reduce((total, group) => total + Math.max(0, Number(group.cursor || 0)), 0)
-  if (groupBudget > 0) {
-    for (const group of groups) {
-      const pages = Math.min(Math.max(0, Number(group.cursor || 0)), Number(input.config.max_strategy_pages || 10))
-      for (let page = 0; page < pages; page += 1) addRequestPlan(plans, { date: group.date || runDate, month: group.month || undefined, wxType: group.request_type === 'wx_type' ? group.type || group.wx_type || group.active_targets?.[0] : undefined, cursor: page ? undefined : undefined }, `strategy_category:${group.type || group.request_type}`)
+  const headers = Object.fromEntries([
+    ['authorization', process.env.WXRANK_AUTHORIZATION],
+    ['cookie', process.env.WXRANK_COOKIE]
+  ].filter(([, value]) => value))
+  const range = text(input.config.range) || '7d'
+  const page = Number(input.config.page ?? 1)
+  const source = await fetchRankedArticleSources({ baseUrl: input.config.base_url || 'https://wxrank.com', range, page, headers })
+
+  if (source.status === 'failed') return {
+    status: 'failed', input_count: null, output_count: 0, created_count: null, updated_count: null, filtered_count: null,
+    request_count: source.request_count, duration_ms: Date.now() - started, artifact: null,
+    error_code: source.errors[0]?.code || 'SOURCE_UNAVAILABLE',
+    message: 'WxRank article ranking endpoints returned no usable article lists',
+    business_summary: { range, page, source_errors: source.errors }
+  }
+
+  const generatedAt = new Date().toISOString()
+  const rawArticleRows = source.rows.map(row => normalizeRankedArticle(row, row.rank_source || 'article'))
+  const deduplicated = deduplicateArticles(rawArticleRows)
+  const articleRows = deduplicated.rows
+  const accountRows = accountRowsFromArticles(articleRows, { source: 'wxrank' })
+  let stage
+  try {
+    stage = await runArticleFilterStage({
+      input, accountRows, articleRows, source: 'wxrank',
+      databaseName: 'wxrank-article-filter.sqlite', now: generatedAt
+    })
+  } catch (error) {
+    error.request_count = source.request_count + (Number(error.request_count) || 0)
+    throw error
+  }
+
+  let existingByBiz
+  try {
+    existingByBiz = await loadExistingAccounts(stage.writeSet.accounts)
+  } catch (error) {
+    error.request_count = source.request_count + stage.filter_rule_request_count + (Number(error.request_count) || 0)
+    throw error
+  }
+  const accountRowsForDisplay = accountStatus(stage.writeSet.accounts, existingByBiz, stage.report)
+  const allowedAccountBizes = new Set(accountRowsForDisplay.filter(row => row.planned_action === 'insert').map(row => row.wx_biz))
+  const accountsToInsert = stage.writeSet.accounts.filter(row => allowedAccountBizes.has(row.wx_biz))
+  const plannedSet = { ...stage.writeSet, accounts: accountsToInsert, account_insert_only: true }
+  const writeSet = { ...plannedSet, planned_updates: updatePlan(plannedSet, accountRowsForDisplay) }
+  const names = new Map(accountRows.map(row => [row.wx_biz, row.wx_name || null]))
+  const articleCount = stage.filteredArticles.length
+  const filteredCount = articleRows.length - articleCount
+  const [writeArtifactResult, filteredArtifactResult, articlesArtifactResult] = await Promise.all([
+    writeArtifact(input.workdir, 'wxrank-article-write-set.json', writeSet),
+    writeArtifact(input.workdir, 'wxrank-filtered-articles.json', { source: 'wxrank', range, page, duplicate_count: deduplicated.duplicate_count, rows: articleDisplay(stage.filteredArticles, names), generated_at: generatedAt }),
+    writeArtifact(input.workdir, 'wxrank-articles.json', { source: 'wxrank', range, page, duplicate_count: deduplicated.duplicate_count, rows: articleDisplay(stage.articles, names), generated_at: generatedAt })
+  ])
+  const artifacts = [
+    Object.assign(writeArtifactResult, {
+    artifact_type: 'write_set',
+    schema_version: '1',
+    record_count: (accountsToInsert.length || 0) + (stage.writeSet.articles?.length || 0) + (stage.writeSet.hotwords?.length || 0)
+    }),
+    Object.assign(filteredArtifactResult, { artifact_type: 'filtered_articles', schema_version: '1', record_count: articleCount }),
+    Object.assign(articlesArtifactResult, { artifact_type: 'articles', schema_version: '1', record_count: articleRows.length })
+  ]
+
+  return {
+    status: source.status === 'partial' ? 'partial' : 'success',
+    input_count: rawArticleRows.length,
+    output_count: articleCount,
+    created_count: null,
+    updated_count: null,
+    filtered_count: filteredCount,
+    request_count: source.request_count + stage.filter_rule_request_count + Math.ceil(stage.writeSet.accounts.length / 200),
+    duration_ms: Date.now() - started,
+    artifact: artifacts,
+    ...(source.errors.length ? { error_code: source.errors[0].code } : {}),
+    message: source.errors.length ? 'WxRank article collection completed with source errors' : 'WxRank article collection and shared filtering completed',
+    business_summary: {
+      range,
+      page,
+      source_rows: Object.fromEntries(source.sources.map(result => [result.source, result.rows.length])),
+      source_errors: source.errors,
+      fetched_articles: rawArticleRows.length,
+      unique_articles: articleRows.length,
+      duplicate_articles: deduplicated.duplicate_count,
+      discovered_accounts: accountRows.length,
+      existing_accounts: accountRowsForDisplay.filter(row => row.exists_in_database).length,
+      planned_account_inserts: accountsToInsert.length,
+      skipped_existing_accounts: accountRowsForDisplay.filter(row => row.planned_action === 'skip_existing').length,
+      skipped_by_account_filter: accountRowsForDisplay.filter(row => row.planned_action === 'skip_account_filter').length,
+      selected_articles: articleCount,
+      filtered_articles: filteredCount,
+      planned_account_updates: 0,
+      planned_article_updates: stage.writeSet.articles.length,
+      planned_hotword_updates: stage.writeSet.hotwords.length,
+      filter_rules: stage.report.filterRules
     }
   }
-  if (input.config.enable_global_plans !== false) {
-    if (probe.status !== 'success') addRequestPlan(plans, { date: effectiveDate }, 'date_today')
-    addRequestPlan(plans, { date: dateMinusDays(effectiveDate, 1) }, 'date_yesterday')
-    addRequestPlan(plans, { month: runDate.slice(0, 6) }, 'month_current')
-  }
-  const maxRequests = Math.max(0, Number(input.config.max_requests ?? strategy.request_budget?.max_total ?? plans.length + requestCount))
-  const fatalProbe = probe.status === 'failed' && !dateFallback && probe.error_code !== 'EMPTY_RESULT'
-  const selectedPlans = fatalProbe ? [] : plans.slice(0, Math.max(0, maxRequests - requestCount))
-  const byReason = {}
-  for (const plan of selectedPlans) {
-    const result = await fetchWxRankArticleList({ apiKey: process.env.WXRANK_API_KEY, date: plan.date, month: plan.month, wxBiz: plan.wxBiz, minReadNum: plan.minReadNum, maxReadNum: plan.maxReadNum, keyword: plan.keyword, wxType: plan.wxType, fetchImpl: globalThis.fetch })
-    requestCount += result.request_count || 0
-    raw.push({ plan, status: result.status, error_code: result.error_code, response: result.response, data: result.data })
-    if (result.status === 'waiting_auth') { waitingAuth = true; errors.push({ plan, code: result.error_code, message: result.message }); break }
-    if (result.status !== 'success') { errors.push({ plan, code: result.error_code, message: result.message }); if (['AUTH_ERROR', 'BALANCE_INSUFFICIENT', 'RATE_LIMIT', 'UPSTREAM_TIMEOUT', 'HTTP_ERROR'].includes(result.error_code)) break; continue }
-    const list = Array.isArray(result.data?.list) ? result.data.list : []
-    byReason[plan.reason] = (byReason[plan.reason] || 0) + list.length
-    const effectiveDate = plan.date || `${plan.month || ''}01`
-    for (const row of list) rows.push(fromWxRank(row, { reason: plan.reason, requestedDate: plan.date || plan.month, effectiveDate }))
-  }
-  const generatedAt = new Date().toISOString()
-  const artifact = await writeArtifact(input.workdir, 'wxrank-articles.json', { source: 'wxrank', run_date: runDate, requested_date: runDate, effective_data_date: effectiveDate, date_resolution: { requested_date: runDate, effective_data_date: effectiveDate, fallback: dateFallback, probe_code: probe.error_code || 'OK' }, rows, generated_at: generatedAt, request_summary: { by_reason: byReason, planned: plans.length + 1, executed: selectedPlans.length + 1 } })
-  artifact.artifact_type = 'articles'; artifact.schema_version = '1'; artifact.record_count = rows.length
-  const rawArtifact = await writeArtifact(input.workdir, 'wxrank-article-raw.json', { source: 'wxrank', requests: raw, generated_at: generatedAt })
-  rawArtifact.artifact_type = 'raw_response'; rawArtifact.schema_version = '1'; rawArtifact.record_count = raw.length
-  const errorArtifact = await writeArtifact(input.workdir, 'wxrank-article-errors.json', { source: 'wxrank', rows: errors, generated_at: generatedAt })
-  errorArtifact.artifact_type = 'exceptions'; errorArtifact.schema_version = '1'; errorArtifact.record_count = errors.length
-  if (waitingAuth) return { status: 'waiting_auth', input_count: selectedPlans.length, output_count: rows.length, created_count: null, updated_count: null, filtered_count: errors.length, request_count: requestCount, duration_ms: Date.now() - started, artifact, debug_artifacts: [rawArtifact, errorArtifact].map(item => ({ ...item, kind: 'debug', default_visible: false })), error_code: 'AUTH_ERROR', message: 'WxRank article API authentication is unavailable' }
-  const status = errors.length ? (rows.length ? 'partial' : 'failed') : 'success'
-  return { status, input_count: selectedPlans.length, output_count: rows.length, created_count: null, updated_count: null, filtered_count: errors.length, request_count: requestCount, duration_ms: Date.now() - started, artifact, debug_artifacts: [rawArtifact, errorArtifact].map(item => ({ ...item, kind: 'debug', default_visible: false })), error_code: errors.length ? errors[0].code : undefined, message: errors.length ? `${errors.length} WxRank request(s) were not usable` : 'WxRank article collection completed', business_summary: { by_reason: byReason, request_count: requestCount, errors: errors.length, planned: plans.length, executed: selectedPlans.length } }
 }
 
 if (import.meta.main) runCollectorMain(collect)
 
-export { collect, fromWxRank }
+export { collect, normalizeRankedArticle }

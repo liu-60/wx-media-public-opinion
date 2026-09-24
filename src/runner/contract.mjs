@@ -54,6 +54,8 @@ export function parseCollectorInput(value = {}) {
   const config = object(input.config, 'config')
   const inputArtifacts = input.input_artifacts ?? input.input_artifact_refs ?? []
   if (!Array.isArray(inputArtifacts)) invalid('input_artifacts must be an array')
+  const executionMode = input.execution_mode ?? 'single_validation'
+  if (!['single_validation', 'workflow'].includes(executionMode)) invalid('execution_mode is invalid')
   return Object.freeze({
     protocol_version: '1.0',
     run_id: text(input.run_id, 'run_id'),
@@ -64,7 +66,8 @@ export function parseCollectorInput(value = {}) {
     input_artifacts: inputArtifacts.map((item, index) => artifactRef(item, `input_artifacts[${index}]`)),
     rule_snapshot_ref: artifactRef(input.rule_snapshot_ref, 'rule_snapshot_ref'),
     strategy_snapshot_ref: artifactRef(input.strategy_snapshot_ref, 'strategy_snapshot_ref'),
-    publish_mode: ['none', 'preview', 'commit'].includes(input.publish_mode) ? input.publish_mode : invalid('publish_mode is invalid')
+    publish_mode: ['none', 'preview', 'commit'].includes(input.publish_mode) ? input.publish_mode : invalid('publish_mode is invalid'),
+    execution_mode: executionMode
   })
 }
 

@@ -9,8 +9,8 @@ function avatarMarkup(target, esc, safeUrl) {
 }
 
 function targetMarkup(target, { esc, safeUrl }) {
-  const average = target?.averageReading === null || target?.averageReading === undefined ? '' : `<small>平均阅读 ${esc(formatMetric(target.averageReading))}</small>`
-  return `<span class="strategy-preview-target">${avatarMarkup(target, esc, safeUrl)}<span><strong>${esc(target?.name || '未命名对象')}</strong>${average}</span></span>`
+  const activeDays = target?.activeDays === null || target?.activeDays === undefined ? '' : `<small>活跃天数 ${esc(formatMetric(target.activeDays))} 天</small>`
+  return `<span class="strategy-preview-target">${avatarMarkup(target, esc, safeUrl)}<span><strong>${esc(target?.name || '未命名对象')}</strong>${activeDays}</span></span>`
 }
 
 export function mountNextRequestPreview(root, {

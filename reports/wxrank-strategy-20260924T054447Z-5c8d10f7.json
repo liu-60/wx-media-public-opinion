@@ -1,0 +1,1637 @@
+{
+  "status": "success",
+  "request_plan": {
+    "request_limit": 4,
+    "configured_hard_limit": 4,
+    "expected_requests": 4,
+    "expectedRequests": 4,
+    "within_limit": true,
+    "withinLimit": true,
+    "strategies": [
+      {
+        "strategy_id": 1,
+        "request_type": "account",
+        "active_targets": [
+          {
+            "target_key": "account:320",
+            "target": {
+              "wx_biz": "MjM5MTM2Mjk4MQ==",
+              "wx_name": "嬉游",
+              "read_avg": 95057,
+              "account_id": 320
+            },
+            "page_budget": 1
+          },
+          {
+            "target_key": "account:7727",
+            "target": {
+              "wx_biz": "MzU0Nzk1MzU1NA==",
+              "wx_name": "刘晓博说财经",
+              "read_avg": 83117,
+              "account_id": 7727
+            },
+            "page_budget": 1
+          },
+          {
+            "target_key": "account:6312",
+            "target": {
+              "wx_biz": "MzI4ODc0MTQyOQ==",
+              "wx_name": "十锤星人",
+              "read_avg": 72539,
+              "account_id": 6312
+            },
+            "page_budget": 1
+          }
+        ],
+        "cursor_budget": 1,
+        "expected_requests": 3,
+        "status": "planned"
+      },
+      {
+        "strategy_id": 2,
+        "request_type": "wx_type",
+        "active_targets": [
+          {
+            "target_key": "type:财富",
+            "target": "财富",
+            "page_budget": 1
+          }
+        ],
+        "cursor_budget": 1,
+        "expected_requests": 1,
+        "status": "planned"
+      }
+    ],
+    "request_preview": [
+      {
+        "strategy_id": 1,
+        "request_type": "account",
+        "target": {
+          "wx_biz": "MjM5MTM2Mjk4MQ==",
+          "wx_name": "嬉游",
+          "read_avg": 95057,
+          "account_id": 320
+        },
+        "page": 1,
+        "page_budget": 1,
+        "page_cursor": null,
+        "parameters": {
+          "wx_biz": "MjM5MTM2Mjk4MQ==",
+          "min_read_num": 50000
+        }
+      },
+      {
+        "strategy_id": 1,
+        "request_type": "account",
+        "target": {
+          "wx_biz": "MzU0Nzk1MzU1NA==",
+          "wx_name": "刘晓博说财经",
+          "read_avg": 83117,
+          "account_id": 7727
+        },
+        "page": 1,
+        "page_budget": 1,
+        "page_cursor": null,
+        "parameters": {
+          "wx_biz": "MzU0Nzk1MzU1NA==",
+          "min_read_num": 50000
+        }
+      },
+      {
+        "strategy_id": 1,
+        "request_type": "account",
+        "target": {
+          "wx_biz": "MzI4ODc0MTQyOQ==",
+          "wx_name": "十锤星人",
+          "read_avg": 72539,
+          "account_id": 6312
+        },
+        "page": 1,
+        "page_budget": 1,
+        "page_cursor": null,
+        "parameters": {
+          "wx_biz": "MzI4ODc0MTQyOQ==",
+          "min_read_num": 50000
+        }
+      },
+      {
+        "strategy_id": 2,
+        "request_type": "wx_type",
+        "target": "财富",
+        "page": 1,
+        "page_budget": 1,
+        "page_cursor": null,
+        "parameters": {
+          "month": "202609",
+          "min_read_num": 80000,
+          "max_read_num": 99999,
+          "wx_type": "财富"
+        }
+      }
+    ]
+  },
+  "request_stats": {
+    "limit": 4,
+    "planned": 4,
+    "total": 4,
+    "success": 4,
+    "failed": 0,
+    "by_strategy": {
+      "account": {
+        "planned": 3,
+        "requests": 3,
+        "success": 3,
+        "failed": 0
+      },
+      "wx_type": {
+        "planned": 1,
+        "requests": 1,
+        "success": 1,
+        "failed": 0
+      }
+    }
+  },
+  "requests": [
+    {
+      "strategy_id": 1,
+      "strategy_type": "account",
+      "target": {
+        "wx_biz": "MjM5MTM2Mjk4MQ==",
+        "wx_name": "嬉游",
+        "read_avg": 95057,
+        "account_id": 320
+      },
+      "target_key": "account:320",
+      "page": 1,
+      "page_cursor": null,
+      "request_count": 1,
+      "request": {
+        "key": "已加载 ****e80d",
+        "wx_biz": "MjM5MTM2Mjk4MQ==",
+        "min_read_num": 50000
+      },
+      "status": "success",
+      "error_code": null,
+      "message": "ok",
+      "returned_article_count": 45,
+      "reported_total": 45,
+      "response_cursor": "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFnVkMGlWUlhrVFp1R2pGVlBWNERkRVEAAAAAAKDa6xZhdm9YWHpQa1FiQ3o3YTVuYnpjeVJB"
+    },
+    {
+      "strategy_id": 1,
+      "strategy_type": "account",
+      "target": {
+        "wx_biz": "MzU0Nzk1MzU1NA==",
+        "wx_name": "刘晓博说财经",
+        "read_avg": 83117,
+        "account_id": 7727
+      },
+      "target_key": "account:7727",
+      "page": 1,
+      "page_cursor": null,
+      "request_count": 1,
+      "request": {
+        "key": "已加载 ****e80d",
+        "wx_biz": "MzU0Nzk1MzU1NA==",
+        "min_read_num": 50000
+      },
+      "status": "success",
+      "error_code": null,
+      "message": "ok",
+      "returned_article_count": 30,
+      "reported_total": 30,
+      "response_cursor": "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFnVkMGlWUlhrVFp1R2pGVlBWNERkRVEAAAAAAKDa7RZhdm9YWHpQa1FiQ3o3YTVuYnpjeVJB"
+    },
+    {
+      "strategy_id": 1,
+      "strategy_type": "account",
+      "target": {
+        "wx_biz": "MzI4ODc0MTQyOQ==",
+        "wx_name": "十锤星人",
+        "read_avg": 72539,
+        "account_id": 6312
+      },
+      "target_key": "account:6312",
+      "page": 1,
+      "page_cursor": null,
+      "request_count": 1,
+      "request": {
+        "key": "已加载 ****e80d",
+        "wx_biz": "MzI4ODc0MTQyOQ==",
+        "min_read_num": 50000
+      },
+      "status": "success",
+      "error_code": "EMPTY_RESULT",
+      "message": "WxRank artlist returned no rows",
+      "returned_article_count": 0,
+      "reported_total": 0,
+      "response_cursor": "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFnVkMGlWUlhrVFp1R2pGVlBWNERkRVEAAAAAAKDa7hZhdm9YWHpQa1FiQ3o3YTVuYnpjeVJB"
+    },
+    {
+      "strategy_id": 2,
+      "strategy_type": "wx_type",
+      "target": "财富",
+      "target_key": "type:财富",
+      "page": 1,
+      "page_cursor": null,
+      "request_count": 1,
+      "request": {
+        "key": "已加载 ****e80d",
+        "month": "202609",
+        "min_read_num": 80000,
+        "max_read_num": 99999,
+        "wx_type": "财富"
+      },
+      "status": "success",
+      "error_code": "EMPTY_RESULT",
+      "message": "WxRank artlist returned no rows",
+      "returned_article_count": 0,
+      "reported_total": 0,
+      "response_cursor": "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFnVkMGlWUlhrVFp1R2pGVlBWNERkRVEAAAAAAKDa9RZhdm9YWHpQa1FiQ3o3YTVuYnpjeVJB"
+    }
+  ],
+  "articles": [
+    {
+      "title": "秒杀！用极低的价格，买一段大多数人一辈子都不会有的体验",
+      "pub_time": "2026-09-01 08:22:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 237,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "1172a6dbf70efe460aa5310b3437c59a",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650798725&idx=1&sn=1172a6dbf70efe460aa5310b3437c59a&chksm=bf7f0b5962b2791d1bb58784daf37c960237a5816b63ba955e80ba71286f5289d6c090fa46c4&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "新店首发！499元，我住进了“小巴厘岛”",
+      "pub_time": "2026-09-04 14:52:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 215,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "999ff3bf4d84db1b05f3bf4d06ee55b4",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650800109&idx=1&sn=999ff3bf4d84db1b05f3bf4d06ee55b4&chksm=bf4d1b12e0ab26a4ed8274d87596eaa8ca525ea08a75536e6ef3039b3e72ca6c6ab33f576ebf&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "大家都在许愿的大爆款返场！神一样的套餐，无可挑剔的价格",
+      "pub_time": "2026-09-02 14:52:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 146,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "493ba95f5586d126fe22b7b99c1742c8",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650799265&idx=1&sn=493ba95f5586d126fe22b7b99c1742c8&chksm=bf2a609bc8a89193b41c7b5215d8556895950e74818e0437b5a03b4674477f875604211c1042&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "全程不加价！国庆不加价！反复确认价格没看错还超有意思的行程！",
+      "pub_time": "2026-09-11 08:33:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 204,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "820ca34b1bdf9cd5811f9ffdff3b2fca",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650801972&idx=1&sn=820ca34b1bdf9cd5811f9ffdff3b2fca&chksm=bc1a02dba12953e2832ac0e592c7c8acda625ce435a05788f04c2834d46d350317c466ad97a1&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "旺季高攀不起的顶流线路，我们搞来了地板价！",
+      "pub_time": "2026-09-10 08:33:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 212,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "233feb77ac480d0cc1bb57083df19db2",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650801648&idx=1&sn=233feb77ac480d0cc1bb57083df19db2&chksm=bca4e8f2c26615709fe8bdf48379213b3e77f3b04c084f39644dcc55b2354130e53e76120f0b&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "又双叒叕跌了！998两晚，还送双人无限次门票",
+      "pub_time": "2026-09-09 14:52:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 596,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "ff02de81d6a4266e049cd9dbb39aaace",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650801474&idx=1&sn=ff02de81d6a4266e049cd9dbb39aaace&chksm=bc720fbfb0f9f26973f16eb462a6522b5c88041883acf690457b381bcaf7fb7582717d6fff1d&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "周一见！笑不活了，旅行爆款也太多太多了",
+      "pub_time": "2026-09-07 08:22:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 210,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "34322353398112fab1e0d4847789883e",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650800475&idx=1&sn=34322353398112fab1e0d4847789883e&chksm=bcde5ce95df8f9780b7465b8a3f94f3555b2bf0188b1c9d4c168ef5121b435b38f74d7e7f9fc&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "好货、稀货、爆款！今年还有，明年不一定",
+      "pub_time": "2026-09-07 14:42:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 86,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "c8ca11ce6c3e48aed4f87be744b58645",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650800576&idx=1&sn=c8ca11ce6c3e48aed4f87be744b58645&chksm=bc3be767b403077d2b79e92f9063ae6ccf301993e2675270b8bfa349305427faa545d72ce0e4&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "早鸟价便宜我知道，但国庆、五一、暑期统统不加价，我是真没想到",
+      "pub_time": "2026-09-06 14:42:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 192,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "d70677c5930b494acdf7462103215565",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650800326&idx=1&sn=d70677c5930b494acdf7462103215565&chksm=bc939107aeeb998715f142f198385ec9ea547bde9e8e8efcaf95d364f5c69b88c47e270ceff8&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "最便宜的理想主义，999块两晚起",
+      "pub_time": "2026-09-08 08:33:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 170,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "91ed2029d911dd7df4969ae2579134a2",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650800688&idx=1&sn=91ed2029d911dd7df4969ae2579134a2&chksm=bce6d619f20aebc8c975a1e9ae950771c1529b77d8da73ee6bd1e8883f67a18ba75ecf75e813&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "仅开三班！花五个月才搞定的闪促价，用魔法打败魔法！",
+      "pub_time": "2026-09-17 08:22:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 126,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "9a22ab692672481d5b6e83137c5049b2",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650804601&idx=1&sn=9a22ab692672481d5b6e83137c5049b2&chksm=bcec974a26d3fc8309f95a48525fa6e34d8bd4de81572394f1a419fc0bf815842f35db7d1eab&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "我的年度第一旅行目的地出现了！价格好好好",
+      "pub_time": "2026-09-15 08:33:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 272,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "2c2879c8b602acc7d9c922cfcae00f35",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650803539&idx=1&sn=2c2879c8b602acc7d9c922cfcae00f35&chksm=bcf6dd384333e02a1fb3cf9c6a96c83adf31b29fda87320092b0e73a7284e1ee76b9a898f625&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "平时舍不得订的贵贵酒店，这次价格好好！",
+      "pub_time": "2026-09-15 15:03:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 128,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "396b6e9fe4d9a4829abf2a3a5f13e92c",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650803768&idx=1&sn=396b6e9fe4d9a4829abf2a3a5f13e92c&chksm=bc9643db4ef614a69f889ff4d1ae00f125a5aba25eff819c03e301a51a2714ceec6d68d36643&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "王炸！降维打击，贵价目的地不可思议价",
+      "pub_time": "2026-09-14 15:03:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 195,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "bd3cb116ff62fdec929af6d913e8ae50",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650803394&idx=1&sn=bd3cb116ff62fdec929af6d913e8ae50&chksm=bc1d87bf48bfcbef0338d8f427c218cfc75af77b399d63cc3f3597437a83bf1ab9b1296303be&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "猪猪跪回来的套餐，诚意满到了天边！见所未见",
+      "pub_time": "2026-09-13 10:03:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 373,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "ceee362c128daa68128345bd25dfd81d",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650802829&idx=1&sn=ceee362c128daa68128345bd25dfd81d&chksm=bce8b91f648e0cdb043e7e5d44263160de11455669ad02368d91fefdad378d305b5c68d33cf6&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "你见过这个价格吗？反正我是见所未见！",
+      "pub_time": "2026-09-13 15:03:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 154,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "a956f94ab14ee1f004a2bd4a3ec39bba",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650802979&idx=1&sn=a956f94ab14ee1f004a2bd4a3ec39bba&chksm=bc25879baa9248b6594357f910619a244ee65f66c8d5ec6c87ee15d721f3b7a0d4e16f7b9472&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "周一见！几乎都是国庆不加价，还有部分春节不加价",
+      "pub_time": "2026-09-14 08:22:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 261,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "4fcbf722ab62633f489b1badef35486e",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650802985&idx=1&sn=4fcbf722ab62633f489b1badef35486e&chksm=bcbcac432c9df0d2a1876b5e203616b8cc8849d418094c1885e80f04a4059ab1281516961972&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "加量还减价！适合全年龄段的爆款团返场了！",
+      "pub_time": "2026-09-18 08:33:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 209,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "9825dde182d8327c4b7b337a1025d9f9",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650804809&idx=1&sn=9825dde182d8327c4b7b337a1025d9f9&chksm=bc15ec2db210534ff8e4124c06a5c705481d0279daa82c667cc9d338d042dad6c06625127df1&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "终于出了个卷王！冬天最想要的温泉酒店，499搞定",
+      "pub_time": "2026-09-18 14:52:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 138,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "11ff71dfcaf1a8bd1fc79335495ff2da",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650805166&idx=1&sn=11ff71dfcaf1a8bd1fc79335495ff2da&chksm=bce0d42acaf82d935d80eaffedbd5f7d8da78aab51489c54d86795fa670b2eb28a16f395afe7&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "这是最后的绝唱，也是最后的特价！错过不再有",
+      "pub_time": "2026-09-19 09:52:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 182,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "c535b10215707f5138d0f19853f97fa1",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650805213&idx=1&sn=c535b10215707f5138d0f19853f97fa1&chksm=bc7a3eda18ac69dd4ec162977e99e5a5508fe6b2c13818c56133d019e39915a8294498353984&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "最近的旅行价格，也太便宜了点吧",
+      "pub_time": "2026-09-19 14:52:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 730,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "42ff68b923b387d776abdb6bc959f96a",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650805338&idx=1&sn=42ff68b923b387d776abdb6bc959f96a&chksm=bc0f0ea98e05082c8a969f5de05deebd481b2b1a2d4e3740380d5a1fd7276d213d6fd7363e92&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "999元/4晚中秋国庆都不加价的超硬大货，今天有海量库存！",
+      "pub_time": "2026-09-20 08:42:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 273,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "7c65472bc40dcbb28de4fab5f6b36ab3",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650805500&idx=1&sn=7c65472bc40dcbb28de4fab5f6b36ab3&chksm=bc44482f9babc4a41268a683b0df1352fe23a25111c60631cddbd35c26c27d2349d033a7b0a2&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "性价比逆天的温泉爆款，国庆、春节全程不加价！",
+      "pub_time": "2026-09-20 14:42:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 144,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "f38a47555f3fdcfd4e551c3297e24c68",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650805534&idx=1&sn=f38a47555f3fdcfd4e551c3297e24c68&chksm=bc7e0a7d87261230d711496f1ed14c76c396531885997ae07bfb7dd8080afa63e2c6ece1f9db&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "周一见！你方唱罢我登场，大促大促不要停",
+      "pub_time": "2026-09-21 08:22:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 212,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "04a98fadee9df033f82c21885f1e93ad",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650805651&idx=1&sn=04a98fadee9df033f82c21885f1e93ad&chksm=bc52f9bcc99f54133226c0901478a6797fd73ab9980a34fff02896c012895af08656e7d57c4f&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "史低价，但我更想告诉你为什么会这么划算",
+      "pub_time": "2026-09-21 15:03:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 148,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "85364ce828154424508b1655628c4a51",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650805936&idx=1&sn=85364ce828154424508b1655628c4a51&chksm=bce7e404566fe38312b7e9275e5a5bbc95394b2c2f7c6c501717330c49e7635de0ae953077c7&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "2299的跟团游，让你住悦榕庄！这账不太对",
+      "pub_time": "2026-09-23 08:33:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 281,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "b995063306f32a9da79e71f0e4ff799a",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650806113&idx=1&sn=b995063306f32a9da79e71f0e4ff799a&chksm=bca3e48b958ba4464751fea4ae199664cfb99457debf7bd2a710a0fe503e34540b8041756121&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "新店首发！天然温泉私汤，奢牌酒店也有神仙价",
+      "pub_time": "2026-09-17 14:52:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 99935,
+      "like_num": 117,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "0eb91cbf619421aa1f2d6b5ce6668904",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650804780&idx=1&sn=0eb91cbf619421aa1f2d6b5ce6668904&chksm=bceedd17caca19dab43618db3181229494a0d476bd562cfa1be1afcd8c9ac6523475f8c30ff3&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "万万没想到，春节旅行居然能有那么高性价比的方案",
+      "pub_time": "2026-09-02 08:42:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 99498,
+      "like_num": 157,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "d34161fc1ef47bcbcd84a70e786e3507",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650798993&idx=1&sn=d34161fc1ef47bcbcd84a70e786e3507&chksm=bff12802a06fac095dc65792d01abea8e0fc1ba2022cec3b921366d54503c8c62703de9a1153&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "正春节、好价格！还是此生必去之目的地",
+      "pub_time": "2026-09-22 09:51:20",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 98305,
+      "like_num": 105,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "9a96f2017ae50d947fc343caba573fa3",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650806104&idx=1&sn=9a96f2017ae50d947fc343caba573fa3&chksm=bc0a87fd0b4cd42c1be4b6acf7bfd3855c5d67400b7e5616f8b0b29c27623a298783bf81835e&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "这家遛娃优等生酒店又又又进化了，还给了个年度好价！",
+      "pub_time": "2026-09-16 15:03:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 97971,
+      "like_num": 97,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "1ffb5425e1f4da710449783e390aba11",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650804301&idx=1&sn=1ffb5425e1f4da710449783e390aba11&chksm=bc51f567baca680a4b327d3dc10cf10459de61113ecaa0ec854fc3b86a8ce8ab7ff052d38b7c&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "满满一篇的「全程不加价」，一口气囤到爽！",
+      "pub_time": "2026-09-22 14:42:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 96529,
+      "like_num": 125,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "f73e84ebd41ec1b5c2e2ec7c6881416c",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650806115&idx=1&sn=f73e84ebd41ec1b5c2e2ec7c6881416c&chksm=bc0eab7a9c1c735cf5bb9418cf51eccc419f44416cd89304bc3d3a70869d6d200ab9c4363041&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "新店首发！国内翻红超快的海边城市，来了家自带流量的新酒店！",
+      "pub_time": "2026-09-11 14:53:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 96421,
+      "like_num": 172,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "3141641d753980f26e959544b4d2f987",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650802322&idx=1&sn=3141641d753980f26e959544b4d2f987&chksm=bc22fff05ae63447c2ae5f88a1e906c7ba60cb28afc071e0d3018edde19a9cd823b18a8d1fc9&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "限时闪促！开城三年，我才敢写这篇推送！",
+      "pub_time": "2026-09-05 09:23:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 91719,
+      "like_num": 171,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "0b054f6e80257c40691b83ec0afda936",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650800133&idx=1&sn=0b054f6e80257c40691b83ec0afda936&chksm=bcf5971346c59fc3219345f795e013c633eb80da27fe521119c350bf7a76e531ad2de18efd7e&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "首发！江边小城的头牌新酒店，给了个超有诚意的开业好价格！",
+      "pub_time": "2026-09-16 08:42:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 90273,
+      "like_num": 144,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "bd60bd4f1c6d6abef7a539328c5f0bb8",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650803825&idx=1&sn=bd60bd4f1c6d6abef7a539328c5f0bb8&chksm=bc1365b6a1e0590affb52fa750dbe3da95b4e8cefdbf197474923c24406b9668a8e7f8cff817&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "400多块，住在历史教科书里",
+      "pub_time": "2026-09-06 10:06:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 90170,
+      "like_num": 180,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "15b61d799a9d81c5fc9957a1967d99d5",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650800158&idx=1&sn=15b61d799a9d81c5fc9957a1967d99d5&chksm=bccad46c6008b076fbc7aaeb8c08c051dfd04eb299670dbd1c19fd1e64ece9716c92866149dc&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "去10000次都不够的地方，又有新酒店登场了",
+      "pub_time": "2026-09-03 20:21:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 89934,
+      "like_num": 156,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "83e228881694cca03594c9553367dd3a",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650799775&idx=1&sn=83e228881694cca03594c9553367dd3a&chksm=bf29ccb0386aad7dc03b8d30c8f6e90602c4f16a0603f2ea8370cd63c33712ed6978135ef4ae&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "白菜价！有些人觉得是智商税，也有些人在这里找回了童年",
+      "pub_time": "2026-09-01 14:52:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 87840,
+      "like_num": 96,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "20e27608a30da4a4833110f91449006d",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650798962&idx=1&sn=20e27608a30da4a4833110f91449006d&chksm=bf0b1a79adffb10cae4fe70673cf3ec3e4c9bd77c4d8329a653107106a0f918f9da498601678&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "只选在景区里建酒店，地段好到没谁了！",
+      "pub_time": "2026-09-10 14:53:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 86395,
+      "like_num": 201,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "7379033b0076a7cac4e9088147efe24c",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650801659&idx=1&sn=7379033b0076a7cac4e9088147efe24c&chksm=bc8a6bf567f544214cda0b1d83008544005668c5b53598ab2df5a935ce2f8cd4f2a4baad8de8&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "今天有9家好吃酒店，有的「史低」、有的节假日不加价！",
+      "pub_time": "2026-09-09 08:33:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 84923,
+      "like_num": 112,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "0f5ac4f6229722caf8d608c7cb982a66",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650801196&idx=1&sn=0f5ac4f6229722caf8d608c7cb982a66&chksm=bc5b1364978a618d33f3d471980934aeddffbffe61dd0ac158dc0695e2430b7734044e0af9bc&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "我们搞定了！300+一晚的泉州，国际品牌，国庆春节全部不加价",
+      "pub_time": "2026-09-05 14:42:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 82567,
+      "like_num": 180,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "56defa80cea74e0d85b28c20a85e7d3f",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650800157&idx=1&sn=56defa80cea74e0d85b28c20a85e7d3f&chksm=bccd5885f1a58b1b915da7497f460abf82eeef52e1eceb8f0d5d78cece368a00a10263087b45&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "颜值高、位置好！樱花季都不加价",
+      "pub_time": "2026-09-08 14:52:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 79275,
+      "like_num": 112,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "9e3b7d4eb2b9ebbf93e1509f07b5968c",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650801036&idx=1&sn=9e3b7d4eb2b9ebbf93e1509f07b5968c&chksm=bc29e94aeee0926bb4f7bfc552e0dace92bad3c920da1763560ea305e3915d9bec99e8651995&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "温泉季的钱最难省，但这次真省下来了！泡私汤、住套房",
+      "pub_time": "2026-09-12 14:52:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 77196,
+      "like_num": 131,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "994450bf1f3397a00aeb220ea78cdb26",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650802420&idx=1&sn=994450bf1f3397a00aeb220ea78cdb26&chksm=bcd459b1188e4c5cc668dfceb87e47eb06729bc6a43c5b15aadb02cd8eb9f0d8e3b1d0476159&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "进士府邸、温泉私汤、米其林正餐！这个套餐好霸道好划算",
+      "pub_time": "2026-09-04 08:33:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 74362,
+      "like_num": 130,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "c8ac46828ede6a6580093eb462764b09",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650799996&idx=1&sn=c8ac46828ede6a6580093eb462764b09&chksm=bfd760983046c958367a3c22ea7c98ad3c0fc4ccec98f6ed477ecd8946c8febfe9de25f7ae59&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "该他压轴！这条《选美中国》的人生之路，到底有多震撼？",
+      "pub_time": "2026-09-03 08:22:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 66255,
+      "like_num": 191,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "bb0cebad5b512a8b21f4eb1cd5b64ba5",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650799640&idx=1&sn=bb0cebad5b512a8b21f4eb1cd5b64ba5&chksm=bf058fd65ada06bce630363d716b629f3584a4fc4ba39f86f1d81525b26909159bb2f19b3db1&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "坦白局，我们这样选品选商家",
+      "pub_time": "2026-09-12 09:43:00",
+      "wx_name": "嬉游",
+      "wx_type": null,
+      "read_num": 63411,
+      "like_num": 310,
+      "wx_biz": "MjM5MTM2Mjk4MQ==",
+      "article_sn": "b2f8e8ea5e53ff3da30541f5572abbdc",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MjM5MTM2Mjk4MQ==&mid=2650802419&idx=1&sn=b2f8e8ea5e53ff3da30541f5572abbdc&chksm=bcd3c1dd8763ee87536b7beca6098b80b626ed0d09cf703c2acd4e07b0ef60aa81e3623af9cf&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "上海成为第一个明确，未来5年大幅减少商品住房供应的大城市，并",
+      "pub_time": "2026-09-03 12:22:20",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 1316,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "2d6bb3dfdb39d970664e1fa011cf2d1b",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577280&idx=1&sn=2d6bb3dfdb39d970664e1fa011cf2d1b&chksm=fab228f91df5148a1ce64a7245aa3860a4a4fdd7ecf99fff31d5d90722d3c3eddafaa7829a9d&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "北京时间昨夜今晨，有几个利空消息：\n\n第一，美债回购不及预期",
+      "pub_time": "2026-09-10 07:06:15",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 1605,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "3e651ca665dac0f4ff1cad986058ef01",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577300&idx=1&sn=3e651ca665dac0f4ff1cad986058ef01&chksm=fa5156f59684272c44f432e34acb9c6a52c1e98f650bd779c6b882dd6bdd2df2571ff6783bb3&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "北京时间昨夜今晨，有几个值得关注的财经大事：\n\n第一，美国财",
+      "pub_time": "2026-09-09 06:54:02",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 2072,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "1bdc5199b0c92ae11828759d137ef8f4",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577298&idx=1&sn=1bdc5199b0c92ae11828759d137ef8f4&chksm=fae9f65841dd385793116ce288bce817f3213815bbae1c2ba10d52c6a5d8a169e5163e246247&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "突如其来的存储涨价潮，改变了韩国和中国在全球手机市场的攻防态",
+      "pub_time": "2026-09-05 16:51:06",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 1352,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "fd9882aec1846454f3bc0f1c1aa1dad0",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577288&idx=1&sn=fd9882aec1846454f3bc0f1c1aa1dad0&chksm=fac211ef0001580afed3a8080ed691189963cdab389b6c20d16de4d9cc76de91518b88312baf&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "今天，有两个财经大事非常重要：\n\n1、台积电实现重大技术突破",
+      "pub_time": "2026-09-06 19:55:00",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 1959,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "96c1c9973b61a4aaa31de0fbb755f5de",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577290&idx=1&sn=96c1c9973b61a4aaa31de0fbb755f5de&chksm=faf03ed018266bb0cccfc6c8d6d63804c45f0ef12bfb2be0ef65de2d83d7734710919a6dfb0f&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "北京时间今天凌晨，美联储宣布加息25个基点，把联邦基准利率上",
+      "pub_time": "2026-09-17 04:22:30",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 2174,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "c0fecbbdee8d7b5234e3b3c69f800a02",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577476&idx=1&sn=c0fecbbdee8d7b5234e3b3c69f800a02&chksm=fa7ba106fd17ebe0155c613ae4af353f6d3d4afe965e84580c7009f9bc141486f460ae149114&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "一波刚平，一波又起！\n\n当地时间9月16日美国众议院通过法案",
+      "pub_time": "2026-09-18 07:20:09",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 100001,
+      "like_num": 1520,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "45efbbcd41e0ca7b390a69e65710b7d3",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577510&idx=1&sn=45efbbcd41e0ca7b390a69e65710b7d3&chksm=fa1891b672f270c5482e639c72f9739a75e615545c74a1c31d6497a3a0789d67ed89ba351d36&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "今天上午，几个重要的悬念有了答案。\n\n第一，特朗普正式驳回美",
+      "pub_time": "2026-09-20 10:45:32",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 98192,
+      "like_num": 1550,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "075ff82178ee1f40a4b09fd31f5a8062",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577523&idx=1&sn=075ff82178ee1f40a4b09fd31f5a8062&chksm=fa2e4f09b4347539e935c88436e5a92bff68c19d9621c5536c41cc206bab383dd66f4b139882&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "北京时间昨夜今晨，全球市场动荡，油价飙升、铜价跳水、欧美股市",
+      "pub_time": "2026-09-11 07:08:30",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 94504,
+      "like_num": 1439,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "61d5f8658d137d600b68bb65f21c3281",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577354&idx=1&sn=61d5f8658d137d600b68bb65f21c3281&chksm=fa230ab676f9bbb2ef41ed0dcc436dc2a01a00c2fdc12c1c483e0eead43dc5c21d12175aa48b&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "今天上午，有三件财经大事值得关注。\n\n第一，日本央行宣布加息",
+      "pub_time": "2026-09-18 11:54:28",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 92354,
+      "like_num": 1436,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "af8028757b50004be5cc17beda6ec28c",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577512&idx=1&sn=af8028757b50004be5cc17beda6ec28c&chksm=fa72608b39c758eade7eb603a3ebc609255cf12d846e3b29167af92d626940e343d787f5fcfa&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "最能挣美国人钱的国家，26年来首次出现了变化：从中国变成了越",
+      "pub_time": "2026-09-07 16:51:17",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 89149,
+      "like_num": 1248,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "fa51ef8296b7a25e83c6b5a9184220dd",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577294&idx=1&sn=fa51ef8296b7a25e83c6b5a9184220dd&chksm=fa6bb9d6feede8ac2ccc96004135129c867b6e28fbb438532ff03d2cdc569f4b25980b6a8037&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "美国国会再次打脸特朗普，直接带崩了加密货币，以及相关概念股。",
+      "pub_time": "2026-09-16 06:54:44",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 89060,
+      "like_num": 1278,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "be30893d58e3f468d18233b32fdb4a4d",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577439&idx=1&sn=be30893d58e3f468d18233b32fdb4a4d&chksm=fa8693d1060ef7f9099a8d3cf6f64f82be2809cce391003ce6fe0c8b585821bc8b09804323be&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "就在刚刚，美国8月非农数据公布：新增就业人数达到16.2万人",
+      "pub_time": "2026-09-04 20:51:30",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 87449,
+      "like_num": 1181,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "c293f7ee4288d6a3825233d767fd0a2c",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577284&idx=1&sn=c293f7ee4288d6a3825233d767fd0a2c&chksm=fafc21df202076a572555798e3019fbb0605c5323b72fe14ae5eacac54d4039c0c7b82874e36&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "今天消息面利好不断，推动股市回暖。\n\n消息一：中国领导人将于",
+      "pub_time": "2026-09-21 16:37:13",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 83430,
+      "like_num": 1352,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "c9c6b7e3a5d4ee0f83a84a1b4ff633b9",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577528&idx=1&sn=c9c6b7e3a5d4ee0f83a84a1b4ff633b9&chksm=fa1f266be4ed4924f126ea1a08a793464bb6aad1d0f73ed7aa11fa84a04c96cef0887343418b&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "一夜变天，全球金融市场又进入动荡期。\n\n美伊冲突再起，特朗普",
+      "pub_time": "2026-09-02 07:06:28",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 82891,
+      "like_num": 1584,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "8c3ef767510c8a828810a1e9c33bf1b0",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577276&idx=1&sn=8c3ef767510c8a828810a1e9c33bf1b0&chksm=fae2fa664ed8600bbf321cee0bdaf088fd7dd403230b18891566353d4fdf63792c103af8c73d&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "过去1个多小时，商务部、央行、金融监管总局、证监会发布了一系",
+      "pub_time": "2026-09-10 16:30:46",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 78217,
+      "like_num": 1375,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "f1ec9dc9f1b2d7d9a011b79d94e01e15",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577333&idx=1&sn=f1ec9dc9f1b2d7d9a011b79d94e01e15&chksm=fa8027be297f65f81f24cc632e520e420e13205d33443dee5baf82900d89f2d16517c58b8c8a&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "北京时间昨夜今晨，美国科技股气势如虹，纳斯达克指数涨2.26",
+      "pub_time": "2026-09-22 07:07:00",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 77901,
+      "like_num": 1384,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "f3db62e08c05f1c484faa34729ab22b3",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577530&idx=1&sn=f3db62e08c05f1c484faa34729ab22b3&chksm=fad08f30fcb61fe687eb0c9c8ca6b7349f2462708cca5d0657039c678e70ef84ea622a1a523e&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "北京时间昨夜今晨，全球市场风雷激荡，多空双方在原油、黄金、股",
+      "pub_time": "2026-09-15 07:02:03",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 76705,
+      "like_num": 1239,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "76b8925d24e1b31003ef2ba8fa962fb6",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577434&idx=1&sn=76b8925d24e1b31003ef2ba8fa962fb6&chksm=fa88ac02433f833b25f66d38202d486717f46f6440174177be0f9ba125cf707c37446ee8415f&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "升级版的硅谷，在这里诞生！",
+      "pub_time": "2026-09-11 11:31:29",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 76521,
+      "like_num": 614,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "2d8b238494e46521db000d377068e859",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577355&idx=1&sn=2d8b238494e46521db000d377068e859&chksm=fac83ed63bb92b8b5038f331466fa2adfa80553e03da14e3cd0f7eb29d40fb248f35f255440a&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "什么？“老登”崛起！",
+      "pub_time": "2026-09-02 17:02:05",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 72741,
+      "like_num": 668,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "7113a85f1a2452fa0596735ac15b96fe",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577277&idx=1&sn=7113a85f1a2452fa0596735ac15b96fe&chksm=fab6754fda0cd80003fc04640d661fb419a93ff3a441e08c1266830db44a7e9af9baef36158b&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "人形机器人IPO将收紧的传闻，今天上午基本确认了。\n\n据财联",
+      "pub_time": "2026-09-21 09:50:07",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 72398,
+      "like_num": 1206,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "0dee72a814dbfbd90c7ffd05caa93aaf",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577526&idx=1&sn=0dee72a814dbfbd90c7ffd05caa93aaf&chksm=faee9d71e6537684abb2b4ca43acf1d871e7e97aa3802423f6793673787f25047aa3298da366&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "更具爆发力的“新钱”，流向哪里？",
+      "pub_time": "2026-09-15 20:26:25",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 72158,
+      "like_num": 507,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "bf68285f4d940de7b2e3d650588668cf",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577437&idx=1&sn=bf68285f4d940de7b2e3d650588668cf&chksm=fa08edbdbdab10e64b7d2738c01323c70cad6b3c614ccc7f4e2002e1920f2d9ba011fd492c13&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "深圳这个大红利，竟然很多人不知道！",
+      "pub_time": "2026-09-14 16:32:42",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 69916,
+      "like_num": 395,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "1fb16be0f7973956ca4579dea6f11288",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577432&idx=1&sn=1fb16be0f7973956ca4579dea6f11288&chksm=fab7ac69e873a395c94804aa2b5159e11b35d2cd3473d27140a08844c023178e6aee15e6e794&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "就在刚刚，全球瞩目的美国8月CPI数据公布了，9月加息概率被",
+      "pub_time": "2026-09-11 21:00:54",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 69582,
+      "like_num": 1182,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "cb835eb8bb94fa428a92b09e996f6e16",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577357&idx=1&sn=cb835eb8bb94fa428a92b09e996f6e16&chksm=fa955fdf0d6d1c3136003c99c82e5d7fda02b53566f85f45b19c0fea0fdb2e0bdc4afe889d48&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "今年的投资者，一直被三件事困扰：\n\n1、油价居高不下；\n2、",
+      "pub_time": "2026-09-08 10:46:43",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 68041,
+      "like_num": 1301,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "25091b8ed0fdcc6689cff575f5ccd94a",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577296&idx=1&sn=25091b8ed0fdcc6689cff575f5ccd94a&chksm=fada86f2d656b45242b226a71dbba89417c0cd1261e4f1563cc296b27797a0908af5ee3d009f&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "今天市场最大的看点是：种业、粮食、农副产品等板块大涨。\n\n神",
+      "pub_time": "2026-09-01 17:47:00",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 67676,
+      "like_num": 1328,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "ea3986910e248947411aa6980255bb22",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577274&idx=1&sn=ea3986910e248947411aa6980255bb22&chksm=fa231c538c8b153bb22496ff2b56f0e27131fef850f531604418fdc4b07be89f73cb72c2979b&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "AI领域出现重大变数：\n\nAnthropic、OpenAI与",
+      "pub_time": "2026-09-14 08:21:38",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 67667,
+      "like_num": 1150,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "695049c6b2cedf29daf868289620fa8f",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577425&idx=1&sn=695049c6b2cedf29daf868289620fa8f&chksm=fa9b90ed0ba9101d37144ee08e3bd5d472d47845250c2c4ee6b1bc5d17349b520c24f7c3bab2&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "最近两天特斯拉股价犹如过山车，先大涨、然后大跌。\n\n成也萧何",
+      "pub_time": "2026-09-05 09:41:26",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 67086,
+      "like_num": 947,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "a81291251c1631a01e54f84a920547c7",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577286&idx=1&sn=a81291251c1631a01e54f84a920547c7&chksm=fa2ffe70488d1d31c59bd55880c19c7036e0c52cdeadcf15741a1a000ee286c13640db482c98&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "A股不忍了！今天走出了强劲的独立行情。\n\n上证指数今天涨了2",
+      "pub_time": "2026-09-16 15:50:34",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 63213,
+      "like_num": 1072,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "6f0ce7ea328b3a1872343a900f9a1a86",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577472&idx=1&sn=6f0ce7ea328b3a1872343a900f9a1a86&chksm=fae29d816040c329f4c0b4e889fd9c8e1aa180770bba0fea70965c8e3315518a205fe96f44f4&scene=126&sessionid=0#rd"
+    },
+    {
+      "title": "号称“中国英伟达”的摩尔线程，今天因为流通股解禁大跌20%，",
+      "pub_time": "2026-09-07 10:34:20",
+      "wx_name": "刘晓博说财经",
+      "wx_type": null,
+      "read_num": 58010,
+      "like_num": 914,
+      "wx_biz": "MzU0Nzk1MzU1NA==",
+      "article_sn": "c58d6a848062994e01c43788dd28d0e0",
+      "article_url": "https://mp.weixin.qq.com/s?__biz=MzU0Nzk1MzU1NA==&mid=2247577292&idx=1&sn=c58d6a848062994e01c43788dd28d0e0&chksm=fa60261639bd0dfc561e51278fb1a1524ee34a6f9b828caf60ace3f145da0b59dd0ca73f447a&scene=126&sessionid=0#rd"
+    }
+  ],
+  "duplicate_count": 0,
+  "strategies": [
+    {
+      "strategy_id": 1,
+      "strategy_type": "account",
+      "planned_objects": [
+        {
+          "wx_biz": "MjM5MTM2Mjk4MQ==",
+          "wx_name": "嬉游",
+          "read_avg": 95057,
+          "account_id": 320
+        },
+        {
+          "wx_biz": "MzU0Nzk1MzU1NA==",
+          "wx_name": "刘晓博说财经",
+          "read_avg": 83117,
+          "account_id": 7727
+        },
+        {
+          "wx_biz": "MzI4ODc0MTQyOQ==",
+          "wx_name": "十锤星人",
+          "read_avg": 72539,
+          "account_id": 6312
+        }
+      ],
+      "expected_requests": 3,
+      "completed_objects": [
+        {
+          "wx_biz": "MjM5MTM2Mjk4MQ==",
+          "wx_name": "嬉游",
+          "read_avg": 95057,
+          "account_id": 320
+        },
+        {
+          "wx_biz": "MzU0Nzk1MzU1NA==",
+          "wx_name": "刘晓博说财经",
+          "read_avg": 83117,
+          "account_id": 7727
+        },
+        {
+          "wx_biz": "MzI4ODc0MTQyOQ==",
+          "wx_name": "十锤星人",
+          "read_avg": 72539,
+          "account_id": 6312
+        }
+      ],
+      "completed_count": 3,
+      "next_active_targets": [
+        {
+          "wx_biz": "MzI1NjA0MDg2Mw==",
+          "wx_name": "夜听",
+          "read_avg": 69913,
+          "account_id": 5542
+        },
+        {
+          "wx_biz": "MzIyMDkxMjY3Mg==",
+          "wx_name": "刀锋2020",
+          "read_avg": 63236,
+          "account_id": 7129
+        },
+        {
+          "wx_biz": "MzUzODAxOTU4Nw==",
+          "wx_name": "闲搞机",
+          "read_avg": 62122,
+          "account_id": 9078
+        }
+      ],
+      "next_cursor": 1,
+      "next_expected_requests": 3,
+      "progress_status": "updated",
+      "completed_items": [
+        {
+          "idempotency_key": "1:1:account:320",
+          "target_key": "account:320",
+          "request_type": "account",
+          "target": {
+            "wx_biz": "MjM5MTM2Mjk4MQ==",
+            "wx_name": "嬉游",
+            "read_avg": 95057,
+            "account_id": 320
+          },
+          "name": "嬉游",
+          "wx_name": "嬉游",
+          "status": "success",
+          "cycle_no": 1,
+          "completed_at": "2026-09-24T05:44:44.415Z",
+          "request_count": 1,
+          "article_count": 45,
+          "request_results": [
+            {
+              "page": 1,
+              "page_cursor": null,
+              "request_count": 1,
+              "request": {
+                "key": "已加载 ****e80d",
+                "wx_biz": "MjM5MTM2Mjk4MQ==",
+                "min_read_num": 50000
+              },
+              "status": "success",
+              "error_code": null,
+              "message": "ok",
+              "returned_article_count": 45,
+              "reported_total": 45,
+              "response_cursor": "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFnVkMGlWUlhrVFp1R2pGVlBWNERkRVEAAAAAAKDa6xZhdm9YWHpQa1FiQ3o3YTVuYnpjeVJB"
+            }
+          ]
+        },
+        {
+          "idempotency_key": "1:1:account:7727",
+          "target_key": "account:7727",
+          "request_type": "account",
+          "target": {
+            "wx_biz": "MzU0Nzk1MzU1NA==",
+            "wx_name": "刘晓博说财经",
+            "read_avg": 83117,
+            "account_id": 7727
+          },
+          "name": "刘晓博说财经",
+          "wx_name": "刘晓博说财经",
+          "status": "success",
+          "cycle_no": 1,
+          "completed_at": "2026-09-24T05:44:44.559Z",
+          "request_count": 1,
+          "article_count": 30,
+          "request_results": [
+            {
+              "page": 1,
+              "page_cursor": null,
+              "request_count": 1,
+              "request": {
+                "key": "已加载 ****e80d",
+                "wx_biz": "MzU0Nzk1MzU1NA==",
+                "min_read_num": 50000
+              },
+              "status": "success",
+              "error_code": null,
+              "message": "ok",
+              "returned_article_count": 30,
+              "reported_total": 30,
+              "response_cursor": "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFnVkMGlWUlhrVFp1R2pGVlBWNERkRVEAAAAAAKDa7RZhdm9YWHpQa1FiQ3o3YTVuYnpjeVJB"
+            }
+          ]
+        },
+        {
+          "idempotency_key": "1:1:account:6312",
+          "target_key": "account:6312",
+          "request_type": "account",
+          "target": {
+            "wx_biz": "MzI4ODc0MTQyOQ==",
+            "wx_name": "十锤星人",
+            "read_avg": 72539,
+            "account_id": 6312
+          },
+          "name": "十锤星人",
+          "wx_name": "十锤星人",
+          "status": "success",
+          "cycle_no": 1,
+          "completed_at": "2026-09-24T05:44:44.654Z",
+          "request_count": 1,
+          "article_count": 0,
+          "request_results": [
+            {
+              "page": 1,
+              "page_cursor": null,
+              "request_count": 1,
+              "request": {
+                "key": "已加载 ****e80d",
+                "wx_biz": "MzI4ODc0MTQyOQ==",
+                "min_read_num": 50000
+              },
+              "status": "success",
+              "error_code": "EMPTY_RESULT",
+              "message": "WxRank artlist returned no rows",
+              "returned_article_count": 0,
+              "reported_total": 0,
+              "response_cursor": "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFnVkMGlWUlhrVFp1R2pGVlBWNERkRVEAAAAAAKDa7hZhdm9YWHpQa1FiQ3o3YTVuYnpjeVJB"
+            }
+          ]
+        }
+      ],
+      "actual_requests": 3
+    },
+    {
+      "strategy_id": 2,
+      "strategy_type": "wx_type",
+      "planned_objects": [
+        "财富"
+      ],
+      "expected_requests": 1,
+      "completed_objects": [
+        "财富"
+      ],
+      "completed_count": 1,
+      "next_active_targets": [
+        "旅行"
+      ],
+      "next_cursor": 1,
+      "next_expected_requests": 1,
+      "progress_status": "updated",
+      "completed_items": [
+        {
+          "idempotency_key": "2:1:type:财富",
+          "target_key": "type:财富",
+          "request_type": "wx_type",
+          "target": "财富",
+          "name": "财富",
+          "status": "success",
+          "cycle_no": 1,
+          "completed_at": "2026-09-24T05:44:46.603Z",
+          "request_count": 1,
+          "article_count": 0,
+          "request_results": [
+            {
+              "page": 1,
+              "page_cursor": null,
+              "request_count": 1,
+              "request": {
+                "key": "已加载 ****e80d",
+                "month": "202609",
+                "min_read_num": 80000,
+                "max_read_num": 99999,
+                "wx_type": "财富"
+              },
+              "status": "success",
+              "error_code": "EMPTY_RESULT",
+              "message": "WxRank artlist returned no rows",
+              "returned_article_count": 0,
+              "reported_total": 0,
+              "response_cursor": "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFnVkMGlWUlhrVFp1R2pGVlBWNERkRVEAAAAAAKDa9RZhdm9YWHpQa1FiQ3o3YTVuYnpjeVJB"
+            }
+          ]
+        }
+      ],
+      "actual_requests": 1
+    }
+  ],
+  "warnings": [],
+  "next_round_plan": {
+    "request_limit": 4,
+    "configured_hard_limit": 4,
+    "expected_requests": 4,
+    "expectedRequests": 4,
+    "within_limit": true,
+    "withinLimit": true,
+    "strategies": [
+      {
+        "strategy_id": 1,
+        "request_type": "account",
+        "active_targets": [
+          {
+            "target_key": "account:5542",
+            "target": {
+              "wx_biz": "MzI1NjA0MDg2Mw==",
+              "wx_name": "夜听",
+              "read_avg": 69913,
+              "account_id": 5542
+            },
+            "page_budget": 1
+          },
+          {
+            "target_key": "account:7129",
+            "target": {
+              "wx_biz": "MzIyMDkxMjY3Mg==",
+              "wx_name": "刀锋2020",
+              "read_avg": 63236,
+              "account_id": 7129
+            },
+            "page_budget": 1
+          },
+          {
+            "target_key": "account:9078",
+            "target": {
+              "wx_biz": "MzUzODAxOTU4Nw==",
+              "wx_name": "闲搞机",
+              "read_avg": 62122,
+              "account_id": 9078
+            },
+            "page_budget": 1
+          }
+        ],
+        "cursor_budget": 1,
+        "expected_requests": 3,
+        "status": "planned"
+      },
+      {
+        "strategy_id": 2,
+        "request_type": "wx_type",
+        "active_targets": [
+          {
+            "target_key": "type:旅行",
+            "target": "旅行",
+            "page_budget": 1
+          }
+        ],
+        "cursor_budget": 1,
+        "expected_requests": 1,
+        "status": "planned"
+      }
+    ],
+    "request_preview": [
+      {
+        "strategy_id": 1,
+        "request_type": "account",
+        "target": {
+          "wx_biz": "MzI1NjA0MDg2Mw==",
+          "wx_name": "夜听",
+          "read_avg": 69913,
+          "account_id": 5542
+        },
+        "page": 1,
+        "page_budget": 1,
+        "page_cursor": null,
+        "parameters": {
+          "wx_biz": "MzI1NjA0MDg2Mw==",
+          "min_read_num": 50000
+        }
+      },
+      {
+        "strategy_id": 1,
+        "request_type": "account",
+        "target": {
+          "wx_biz": "MzIyMDkxMjY3Mg==",
+          "wx_name": "刀锋2020",
+          "read_avg": 63236,
+          "account_id": 7129
+        },
+        "page": 1,
+        "page_budget": 1,
+        "page_cursor": null,
+        "parameters": {
+          "wx_biz": "MzIyMDkxMjY3Mg==",
+          "min_read_num": 50000
+        }
+      },
+      {
+        "strategy_id": 1,
+        "request_type": "account",
+        "target": {
+          "wx_biz": "MzUzODAxOTU4Nw==",
+          "wx_name": "闲搞机",
+          "read_avg": 62122,
+          "account_id": 9078
+        },
+        "page": 1,
+        "page_budget": 1,
+        "page_cursor": null,
+        "parameters": {
+          "wx_biz": "MzUzODAxOTU4Nw==",
+          "min_read_num": 50000
+        }
+      },
+      {
+        "strategy_id": 2,
+        "request_type": "wx_type",
+        "target": "旅行",
+        "page": 1,
+        "page_budget": 1,
+        "page_cursor": null,
+        "parameters": {
+          "month": "202609",
+          "min_read_num": 80000,
+          "max_read_num": 99999,
+          "wx_type": "旅行"
+        }
+      }
+    ]
+  },
+  "database_strategies": [
+    {
+      "id": 1,
+      "request_type": "account",
+      "active_targets": [
+        {
+          "wx_biz": "MzI1NjA0MDg2Mw==",
+          "wx_name": "夜听",
+          "read_avg": 69913,
+          "account_id": 5542
+        },
+        {
+          "wx_biz": "MzIyMDkxMjY3Mg==",
+          "wx_name": "刀锋2020",
+          "read_avg": 63236,
+          "account_id": 7129
+        },
+        {
+          "wx_biz": "MzUzODAxOTU4Nw==",
+          "wx_name": "闲搞机",
+          "read_avg": 62122,
+          "account_id": 9078
+        }
+      ],
+      "completed_items": [
+        {
+          "name": "嬉游",
+          "status": "success",
+          "target": {
+            "wx_biz": "MjM5MTM2Mjk4MQ==",
+            "wx_name": "嬉游",
+            "read_avg": 95057,
+            "account_id": 320
+          },
+          "wx_name": "嬉游",
+          "cycle_no": 1,
+          "target_key": "account:320",
+          "completed_at": "2026-09-24T05:44:44.415Z",
+          "request_type": "account",
+          "article_count": 45,
+          "request_count": 1,
+          "idempotency_key": "1:1:account:320",
+          "request_results": [
+            {
+              "page": 1,
+              "status": "success",
+              "message": "ok",
+              "request": {
+                "key": "已加载 ****e80d",
+                "wx_biz": "MjM5MTM2Mjk4MQ==",
+                "min_read_num": 50000
+              },
+              "error_code": null,
+              "page_cursor": null,
+              "request_count": 1,
+              "reported_total": 45,
+              "response_cursor": "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFnVkMGlWUlhrVFp1R2pGVlBWNERkRVEAAAAAAKDa6xZhdm9YWHpQa1FiQ3o3YTVuYnpjeVJB",
+              "returned_article_count": 45
+            }
+          ]
+        },
+        {
+          "name": "刘晓博说财经",
+          "status": "success",
+          "target": {
+            "wx_biz": "MzU0Nzk1MzU1NA==",
+            "wx_name": "刘晓博说财经",
+            "read_avg": 83117,
+            "account_id": 7727
+          },
+          "wx_name": "刘晓博说财经",
+          "cycle_no": 1,
+          "target_key": "account:7727",
+          "completed_at": "2026-09-24T05:44:44.559Z",
+          "request_type": "account",
+          "article_count": 30,
+          "request_count": 1,
+          "idempotency_key": "1:1:account:7727",
+          "request_results": [
+            {
+              "page": 1,
+              "status": "success",
+              "message": "ok",
+              "request": {
+                "key": "已加载 ****e80d",
+                "wx_biz": "MzU0Nzk1MzU1NA==",
+                "min_read_num": 50000
+              },
+              "error_code": null,
+              "page_cursor": null,
+              "request_count": 1,
+              "reported_total": 30,
+              "response_cursor": "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFnVkMGlWUlhrVFp1R2pGVlBWNERkRVEAAAAAAKDa7RZhdm9YWHpQa1FiQ3o3YTVuYnpjeVJB",
+              "returned_article_count": 30
+            }
+          ]
+        },
+        {
+          "name": "十锤星人",
+          "status": "success",
+          "target": {
+            "wx_biz": "MzI4ODc0MTQyOQ==",
+            "wx_name": "十锤星人",
+            "read_avg": 72539,
+            "account_id": 6312
+          },
+          "wx_name": "十锤星人",
+          "cycle_no": 1,
+          "target_key": "account:6312",
+          "completed_at": "2026-09-24T05:44:44.654Z",
+          "request_type": "account",
+          "article_count": 0,
+          "request_count": 1,
+          "idempotency_key": "1:1:account:6312",
+          "request_results": [
+            {
+              "page": 1,
+              "status": "success",
+              "message": "WxRank artlist returned no rows",
+              "request": {
+                "key": "已加载 ****e80d",
+                "wx_biz": "MzI4ODc0MTQyOQ==",
+                "min_read_num": 50000
+              },
+              "error_code": "EMPTY_RESULT",
+              "page_cursor": null,
+              "request_count": 1,
+              "reported_total": 0,
+              "response_cursor": "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFnVkMGlWUlhrVFp1R2pGVlBWNERkRVEAAAAAAKDa7hZhdm9YWHpQa1FiQ3o3YTVuYnpjeVJB",
+              "returned_article_count": 0
+            }
+          ]
+        }
+      ],
+      "cursor": 1,
+      "cycle_no": 1,
+      "next_expected_requests": 3
+    },
+    {
+      "id": 2,
+      "request_type": "wx_type",
+      "active_targets": [
+        "旅行"
+      ],
+      "completed_items": [
+        {
+          "name": "财富",
+          "status": "success",
+          "target": "财富",
+          "cycle_no": 1,
+          "target_key": "type:财富",
+          "completed_at": "2026-09-24T05:44:46.603Z",
+          "request_type": "wx_type",
+          "article_count": 0,
+          "request_count": 1,
+          "idempotency_key": "2:1:type:财富",
+          "request_results": [
+            {
+              "page": 1,
+              "status": "success",
+              "message": "WxRank artlist returned no rows",
+              "request": {
+                "key": "已加载 ****e80d",
+                "month": "202609",
+                "wx_type": "财富",
+                "max_read_num": 99999,
+                "min_read_num": 80000
+              },
+              "error_code": "EMPTY_RESULT",
+              "page_cursor": null,
+              "request_count": 1,
+              "reported_total": 0,
+              "response_cursor": "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFnVkMGlWUlhrVFp1R2pGVlBWNERkRVEAAAAAAKDa9RZhdm9YWHpQa1FiQ3o3YTVuYnpjeVJB",
+              "returned_article_count": 0
+            }
+          ]
+        }
+      ],
+      "cursor": 1,
+      "cycle_no": 1,
+      "next_expected_requests": 1
+    }
+  ],
+  "run_id": "5c8d10f7-e7e7-4117-981f-1894e97d4e24",
+  "artifact_path": "C:\\Users\\Administrator\\Documents\\微信自媒体舆情\\reports\\wxrank-strategy-20260924T054447Z-5c8d10f7.json",
+  "progress_reconciliation": {
+    "strategy_id": 1,
+    "status": "updated",
+    "additional_wxrank_requests": 0
+  }
+}

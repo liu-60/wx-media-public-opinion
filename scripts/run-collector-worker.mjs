@@ -98,7 +98,8 @@ async function executeRun({ run, store, artifacts, sourceArtifacts = artifacts, 
         const protocolInput = {
           protocol_version: '1.0', run_id: run.id, step_run_id: stepRun.id, attempt, config,
           workdir: runRoot, input_artifacts: protocolArtifacts, rule_snapshot_ref: input.rule_snapshot_ref,
-          strategy_snapshot_ref: input.strategy_snapshot_ref, publish_mode: run.config_snapshot?.publish_mode || 'preview'
+          strategy_snapshot_ref: input.strategy_snapshot_ref, publish_mode: run.config_snapshot?.publish_mode || 'preview',
+          execution_mode: run.run_kind === 'single_script' || run.workflow_snapshot?.validation_only === true ? 'single_validation' : 'workflow'
         }
         const execution = await executeCollector({ entrypoint: resolved.absolutePath, input: protocolInput, workdir: PROJECT_ROOT, timeoutMs: Number(step.timeout_seconds || snapshot.timeout_seconds || 900) * 1000 })
         let logRef = null

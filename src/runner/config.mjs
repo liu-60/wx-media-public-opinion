@@ -16,7 +16,7 @@ function merge(left, right) {
 }
 
 export const DEFAULT_RUN_OVERRIDE_KEYS = Object.freeze([
-  'publish_mode', 'run_date', 'target_date', 'stat_date', 'lookback_days', 'range', 'base_url', 'request_budget',
+  'publish_mode', 'run_date', 'target_date', 'start_date', 'end_date', 'stat_date', 'request_type', 'request_types', 'lookback_days', 'range', 'base_url', 'request_budget',
   'page_budget', 'max_requests', 'max_hotwords', 'min_platform_count', 'merge_consistency_threshold', 'merge_min_article_count', 'title_overlap_threshold', 'min_article_count', 'stage', 'output_name', 'category_url', 'wechat_node_url', 'wechat_platform', 'plans', 'strategy', 'source', 'publish_only', 'publish_artifact_run_id', 'publish_artifact_id', 'publish_write_set_hash', 'input_artifacts'
 ])
 

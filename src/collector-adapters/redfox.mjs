@@ -1,9 +1,11 @@
 const REDFOX_BASE = 'https://redfox.hk'
 
+const rankBodyForRange = (startDate, endDate) => ({ type: '总排名', startDate, endDate })
+
 export const REDFOX_GZH_SOURCES = Object.freeze([
-  Object.freeze({ no: 'ZIGAGYYT', name: '公众号10W+文章推荐', endpoint: `${REDFOX_BASE}/story/api/cozeSkill/getTenWReadingRank`, type: 'article-rank', price: 0.04, bodyForDate: date => ({ type: '总排名', startDate: date, endDate: date }) }),
-  Object.freeze({ no: 'OFFSPQ0U', name: '公众号原创爆款文章推荐', endpoint: `${REDFOX_BASE}/story/api/cozeSkill/getOriginalRank`, type: 'article-rank', price: 0.04, bodyForDate: date => ({ type: '知识百科', startDate: date, endDate: date }) }),
-  Object.freeze({ no: 'API_1789637464311', name: '公众号头条增长榜', endpoint: `${REDFOX_BASE}/story/api/gzh/heima/rankList`, type: 'account-growth-rank', price: 0.04, bodyForDate: date => ({ page: 1, rank_date: `${date} 00:00:00`, author_type: '人文资讯' }) })
+  Object.freeze({ no: 'ZIGAGYYT', name: '公众号10W+文章推荐', endpoint: REDFOX_BASE + '/story/api/cozeSkill/getTenWReadingRank', type: 'article-rank', price: 0.04, bodyForDate: date => rankBodyForRange(date, date), bodyForRange: rankBodyForRange }),
+  Object.freeze({ no: 'OFFSPQ0U', name: '公众号原创爆款文章推荐', endpoint: REDFOX_BASE + '/story/api/cozeSkill/getOriginalRank', type: 'article-rank', price: 0.04, bodyForDate: date => rankBodyForRange(date, date), bodyForRange: rankBodyForRange }),
+  Object.freeze({ no: 'API_1789637464311', name: '公众号头条增长榜', endpoint: REDFOX_BASE + '/story/api/gzh/heima/rankList', type: 'account-growth-rank', price: 0.04, bodyForDate: date => ({ page: 1, rank_date: date + ' 00:00:00', author_type: '人文资讯' }) })
 ])
 
 function text(value) {
@@ -122,14 +124,41 @@ export function classifyRedfoxResponse({ httpStatus = 0, body = null, responsePa
 }
 
 function dateMinusDays(date, days) {
-  const value = new Date(`${date}T00:00:00Z`)
+  const value = new Date(date + 'T00:00:00Z')
   value.setUTCDate(value.getUTCDate() - days)
   return value.toISOString().slice(0, 10)
 }
 
-export async function fetchRedfoxSources({ apiKey = process.env.REDFOX_API_KEY, targetDate, lookbackDays = 2, sourceNos = ['ZIGAGYYT', 'OFFSPQ0U'], fetchImpl = globalThis.fetch } = {}) {
+function validateDate(value, name) {
+  const date = String(value ?? '')
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(date) || new Date(date + 'T00:00:00.000Z').toISOString().slice(0, 10) !== date) {
+    throw new TypeError(name + ' must use a valid YYYY-MM-DD date')
+  }
+  return date
+}
+
+export async function fetchRedfoxSources({ apiKey = process.env.REDFOX_API_KEY, targetDate, startDate, endDate, lookbackDays = 2, sourceNos = ['ZIGAGYYT', 'OFFSPQ0U'], fetchImpl = globalThis.fetch } = {}) {
   if (!apiKey) return { status: 'waiting_auth', error_code: 'AUTH_REQUIRED', message: 'REDFOX_API_KEY is required', request_count: 0, sources: [], rows: [] }
-  if (!/^\d{4}-\d{2}-\d{2}$/u.test(String(targetDate || ''))) throw new TypeError('targetDate must use YYYY-MM-DD')
+  const hasExplicitRange = startDate !== undefined || endDate !== undefined
+  let requestedDate = null
+  let requestedStartDate = null
+  let requestedEndDate = null
+  let dateRanges
+  if (hasExplicitRange) {
+    requestedStartDate = validateDate(startDate, 'startDate')
+    requestedEndDate = validateDate(endDate, 'endDate')
+    if (requestedStartDate > requestedEndDate) throw new TypeError('startDate must be on or before endDate')
+    dateRanges = [{ startDate: requestedStartDate, endDate: requestedEndDate }]
+  } else {
+    requestedDate = validateDate(targetDate, 'targetDate')
+    if (!Number.isSafeInteger(lookbackDays) || lookbackDays < 0 || lookbackDays > 31) throw new TypeError('lookbackDays must be an integer from 0 to 31')
+    requestedStartDate = requestedDate
+    requestedEndDate = requestedDate
+    dateRanges = Array.from({ length: lookbackDays + 1 }, (_, offset) => {
+      const date = dateMinusDays(requestedDate, offset)
+      return { startDate: date, endDate: date }
+    })
+  }
   const sources = []
   const rawSources = []
   const rows = []
@@ -138,18 +167,19 @@ export async function fetchRedfoxSources({ apiKey = process.env.REDFOX_API_KEY, 
   const selectedSources = REDFOX_GZH_SOURCES.filter(source => sourceNos.includes(source.no))
   for (const source of selectedSources) {
     let selected = null
-    for (let offset = 0; offset <= lookbackDays; offset += 1) {
-      const date = dateMinusDays(targetDate, offset)
+    for (const range of dateRanges) {
+      const { startDate: rangeStartDate, endDate: rangeEndDate } = range
       requestCount += 1
       let body = null
       let httpStatus = 0
       let parseError = false
       try {
-        const response = await fetchImpl(source.endpoint, { method: 'POST', headers: { REDFOX_API_KEY: apiKey, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(source.bodyForDate(date)) })
+        const requestBody = source.bodyForRange ? source.bodyForRange(rangeStartDate, rangeEndDate) : source.bodyForDate(rangeEndDate)
+        const response = await fetchImpl(source.endpoint, { method: 'POST', headers: { REDFOX_API_KEY: apiKey, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(requestBody) })
         httpStatus = Number(response?.status || 0)
         try { body = await response.json() } catch { parseError = true }
       } catch (error) {
-        selected = { no: source.no, date, code: 'HTTP_ERROR', status: 'failed', message: text(error?.message || 'request failed') }
+        selected = { no: source.no, date: rangeEndDate, start_date: rangeStartDate, end_date: rangeEndDate, code: 'HTTP_ERROR', status: 'failed', message: text(error?.message || 'request failed') }
         break
       }
       const classification = classifyRedfoxResponse({ httpStatus, body, responseParseError: parseError })
@@ -157,17 +187,17 @@ export async function fetchRedfoxSources({ apiKey = process.env.REDFOX_API_KEY, 
         const detail = normalizeRedfoxRowsDetailed(extractRedfoxRows(body))
         const normalized = detail.rows.map(row => ({ ...row, source_no: source.no }))
         const sourceErrors = detail.errors.map(error => ({ ...error, source_no: source.no }))
-        selected = { no: source.no, date, code: normalized.length ? 'OK' : 'INVALID_DATA', status: normalized.length ? 'success' : 'failed', row_count: normalized.length, rows: normalized, errors: sourceErrors, body }
+        selected = { no: source.no, date: rangeEndDate, start_date: rangeStartDate, end_date: rangeEndDate, code: normalized.length ? 'OK' : 'INVALID_DATA', status: normalized.length ? 'success' : 'failed', row_count: normalized.length, rows: normalized, errors: sourceErrors, body }
         rows.push(...normalized)
         errors.push(...sourceErrors)
         break
       }
-      selected = { no: source.no, date, code: classification.code, status: 'failed', message: classification.message, body }
+      selected = { no: source.no, date: rangeEndDate, start_date: rangeStartDate, end_date: rangeEndDate, code: classification.code, status: 'failed', message: classification.message, body }
       if (!['BUSINESS_ERROR', 'EMPTY_RESULT'].includes(classification.code)) break
     }
     rawSources.push(selected)
     sources.push({ ...selected, body: undefined })
   }
   const failed = sources.filter(item => item.status !== 'success')
-  return { status: failed.length ? (failed.length === sources.length ? 'failed' : 'partial') : 'success', request_count: requestCount, sources, raw_sources: rawSources, rows, errors, message: failed.length ? `${failed.length} RedFox source(s) failed` : 'ok' }
+  return { status: failed.length ? (failed.length === sources.length ? 'failed' : 'partial') : 'success', request_count: requestCount, requested_range: { start_date: requestedStartDate, end_date: requestedEndDate }, requested_date: requestedDate, sources, raw_sources: rawSources, rows, errors, message: failed.length ? String(failed.length) + ' RedFox source(s) failed' : 'ok' }
 }

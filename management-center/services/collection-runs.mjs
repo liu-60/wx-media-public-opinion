@@ -1,4 +1,5 @@
 import { DEFAULT_RUN_OVERRIDE_KEYS, selectAllowedRunOverride } from '../../src/runner/config.mjs'
+import { validateWxRankRequestTypes } from '../../src/runner/wxrank-strategy-config.mjs'
 import { createConfigValidation } from './config-validation.mjs'
 import { validateScriptRunRequest } from '../../src/runner/workflow.mjs'
 import { SCRIPT_FIELDS } from './collectors.mjs'
@@ -77,6 +78,10 @@ export function createCollectionRunService({ client, startValidationRun = null }
       const publishMode = input.publish_mode || input.publishMode || 'preview'
       validateScriptRunRequest(script, { inputArtifacts, publishMode })
       const configOverride = selectAllowedRunOverride(input.config_snapshot || input.config || {}, DEFAULT_RUN_OVERRIDE_KEYS)
+      if (script?.script_key === 'wxrank-strategy') {
+        configOverride.request_types = validateWxRankRequestTypes(configOverride, { mode: 'single_validation' })
+        delete configOverride.request_type
+      }
       configOverride.publish_mode = publishMode
       configOverride.input_artifacts = inputArtifacts
       const result = await client.rpc('create_collection_script_run', { p_script_id: scriptId, p_config_override: configOverride, p_input_artifacts: inputArtifacts, p_rule_snapshot: input.rule_snapshot || {}, p_strategy_snapshot: input.strategy_snapshot || {}, p_parent_run_id: input.parent_run_id || null })

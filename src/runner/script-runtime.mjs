@@ -37,9 +37,11 @@ export async function readArtifact(workdir, reference) {
   return JSON.parse(content.toString('utf8'))
 }
 
-export async function runCollectorMain(handler) {
+export async function runCollectorMain(handler, { inputText } = {}) {
   try {
-    const input = await readCollectorInput()
+    const input = inputText === undefined
+      ? await readCollectorInput()
+      : parseCollectorInput(JSON.parse(String(inputText || '{}')))
     const result = await handler(input)
     emitEvent({ type: 'result', ...parseCollectorFinalResult(result) })
   } catch (error) {

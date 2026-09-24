@@ -112,10 +112,12 @@ const ACCOUNT_OPTIONAL_COLUMNS = [
   ['profile.collected_at', 'collected_at']
 ]
 const ACCOUNT_FIXED_COLUMNS = ['publisher', 'verify', 'decision_status', 'type_region', 'pub_count', 'active_days', 'read_avg', 'read_median', 'read_max', 'burst_rate', 'last_pub_time', 'updated_at', 'actions']
-const RULE_KEYWORD_GROUPS = Object.freeze([
+const RULE_TAG_FILTER_GROUPS = Object.freeze([
   { key: 'account|name|contains', field: 'name', label: '公众号名称' },
   { key: 'account|verification|contains', field: 'verification', label: '认证信息' },
-  { key: 'account|description|contains', field: 'description', label: '简介' }
+  { key: 'account|description|contains', field: 'description', label: '简介' },
+  { key: 'hotword|hotword|exact', field: 'hotword', label: '热词精确匹配' },
+  { key: 'hotword|hotword|contains', field: 'hotword', label: '热词包含匹配' }
 ])
 
 function errorMessage(error) {
@@ -631,14 +633,14 @@ function KeywordFilterCard({ groups, canWrite, onSaved }) {
   const [saving, setSaving] = useState(false)
   useEffect(() => {
     const byKey = new Map(groups.map(group => [group.key, group]))
-    setSelectedFields(RULE_KEYWORD_GROUPS.filter(definition => (byKey.get(definition.key)?.rows || []).length).map(definition => definition.key))
-    setDrafts(Object.fromEntries(RULE_KEYWORD_GROUPS.map(definition => [definition.key, (byKey.get(definition.key)?.rows || []).map(row => String(ruleValue(row)))])))
+    setSelectedFields(RULE_TAG_FILTER_GROUPS.filter(definition => (byKey.get(definition.key)?.rows || []).length).map(definition => definition.key))
+    setDrafts(Object.fromEntries(RULE_TAG_FILTER_GROUPS.map(definition => [definition.key, (byKey.get(definition.key)?.rows || []).map(row => String(ruleValue(row)))])))
   }, [groups])
   const save = async () => {
     setSaving(true)
     try {
       const byKey = new Map(groups.map(group => [group.key, group]))
-      for (const definition of RULE_KEYWORD_GROUPS) {
+      for (const definition of RULE_TAG_FILTER_GROUPS) {
         const group = byKey.get(definition.key) || { key: definition.key, rows: [] }
         const oldRows = group.rows || []
         const values = selectedFields.includes(definition.key) ? drafts[definition.key] || [] : []
@@ -656,11 +658,11 @@ function KeywordFilterCard({ groups, canWrite, onSaved }) {
       setSaving(false)
     }
   }
-  return <Card title={<Space><FilterOutlined />账号关键词过滤</Space>} extra={<Button type="primary" size="small" loading={saving} disabled={!canWrite} onClick={save}>保存关键词</Button>} className="keyword-filter-card">
-    <Typography.Paragraph type="secondary">页面统一管理账号名称、认证信息和简介中的关键词，保存时仍写回原有三类 filter_rules 分组。</Typography.Paragraph>
-    <Checkbox.Group value={selectedFields} onChange={setSelectedFields} options={RULE_KEYWORD_GROUPS.map(definition => ({ label: definition.label, value: definition.key }))} />
+  return <Card title={<Space><FilterOutlined />关键词过滤规则</Space>} extra={<Button type="primary" size="small" loading={saving} disabled={!canWrite} onClick={save}>保存规则</Button>} className="keyword-filter-card">
+    <Typography.Paragraph type="secondary">用标签统一管理账号名称、认证信息、简介和热词过滤；热词保留精确匹配与包含匹配，保存时仍写回原有 filter_rules 分组。</Typography.Paragraph>
+    <Checkbox.Group value={selectedFields} onChange={setSelectedFields} options={RULE_TAG_FILTER_GROUPS.map(definition => ({ label: definition.label, value: definition.key }))} />
     <Divider />
-    <Row gutter={[16, 0]}>{RULE_KEYWORD_GROUPS.filter(definition => selectedFields.includes(definition.key)).map(definition => <Col xs={24} md={8} key={definition.key}><Typography.Text strong>{definition.label}</Typography.Text><Select getPopupContainer={getBodyPopupContainer} mode="tags" value={drafts[definition.key] || []} onChange={value => setDrafts(current => ({ ...current, [definition.key]: value }))} tokenSeparators={[',', '，']} style={{ width: '100%', marginTop: 8 }} placeholder="输入关键词后回车" /></Col>)}</Row>
+    <Row gutter={[16, 0]}>{RULE_TAG_FILTER_GROUPS.filter(definition => selectedFields.includes(definition.key)).map(definition => <Col xs={24} md={8} key={definition.key}><Typography.Text strong>{definition.label}</Typography.Text><Select getPopupContainer={getBodyPopupContainer} mode="tags" value={drafts[definition.key] || []} onChange={value => setDrafts(current => ({ ...current, [definition.key]: value }))} tokenSeparators={[',', '，']} style={{ width: '100%', marginTop: 8 }} placeholder="输入关键词后回车" /></Col>)}</Row>
   </Card>
 }
 
@@ -683,7 +685,7 @@ function RulesPage({ canWrite, refreshKey }) {
   }
   useEffect(() => { loadRules() }, [refreshKey])
   const allRuleRows = groups.flatMap(group => (group.rows || []).map(row => ({ ...row, groupKey: group.key, group })))
-  const visibleRows = allRuleRows.filter(row => !RULE_KEYWORD_GROUPS.some(definition => definition.key === row.groupKey))
+  const visibleRows = allRuleRows.filter(row => !RULE_TAG_FILTER_GROUPS.some(definition => definition.key === row.groupKey))
   const filteredRows = visibleRows.filter(row => (!scopeFilter || row.scope === scopeFilter) && (!keywordFilter || `${ruleValue(row)} ${row.remark || ''} ${row.group.label}`.toLowerCase().includes(keywordFilter.toLowerCase())))
   const enabledCount = allRuleRows.filter(row => row.enabled !== false).length
   const hitCount = allRuleRows.reduce((sum, row) => sum + Number(row.hit_count || 0), 0)

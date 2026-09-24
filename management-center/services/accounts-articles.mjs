@@ -352,11 +352,15 @@ export function createAccountsArticlesService({ client, now = () => new Date().t
     const ids = [...new Set(rawIds.map(positiveId))]
     const filters = ids.length ? [{ column: 'account_id', operator: 'in', value: ids }] : []
     const result = await client.list('accounts', {
-      columns: ['account_id', 'wx_biz', 'wx_name'],
-      relations: [{ table: ACCOUNT_PROFILE_RELATION, columns: ['account_id', 'avatar', 'read_avg'], join: 'left' }],
+      columns: ['account_id', 'wx_biz', 'wx_name', 'read_median'],
+      relations: [{ table: ACCOUNT_PROFILE_RELATION, columns: ['account_id', 'avatar', 'active_days'], join: 'left' }],
       filters,
       search: searchValue ? { columns: ['wx_name', 'wx_biz'], value: searchValue } : undefined,
-      order: [{ column: 'wx_name', direction: 'asc', nulls: 'last' }, { column: 'account_id', direction: 'asc' }],
+      order: [
+        { relation: ACCOUNT_PROFILE_RELATION, column: 'active_days', direction: 'desc', nulls: 'last' },
+        { column: 'read_median', direction: 'desc', nulls: 'last' },
+        { column: 'account_id', direction: 'asc' }
+      ],
       limit: pageSize,
       offset,
       count: 'exact'
@@ -364,7 +368,7 @@ export function createAccountsArticlesService({ client, now = () => new Date().t
     return {
       items: (Array.isArray(result.data) ? result.data : []).map(row => {
         const profile = profileFromRow(row.account_profiles)
-        return { id: row.account_id, key: row.wx_biz, name: row.wx_name, avatar: profile?.avatar ?? null, averageReading: profile?.read_avg ?? null }
+        return { id: row.account_id, key: row.wx_biz, name: row.wx_name, avatar: profile?.avatar ?? null, activeDays: profile?.active_days ?? null, medianReading: row.read_median ?? null }
       }),
       total: result.total ?? null,
       page,
