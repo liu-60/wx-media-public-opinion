@@ -76,7 +76,7 @@ export async function materializeInputArtifacts({ runId, references = [], artifa
       availability: 'available',
       bytes: copied.bytes,
       record_count: entry.record_count,
-      default_visible: false
+      default_visible: entry.default_visible === true && ['accounts', 'articles', 'hotwords'].includes(canonicalArtifactType(entry))
     })
   }
   artifactEntries.push(...copiedEntries)

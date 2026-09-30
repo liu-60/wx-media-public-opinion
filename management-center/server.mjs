@@ -12,8 +12,11 @@ import { createWorkflowService } from './services/workflows.mjs'
 import { createCollectionRunService } from './services/collection-runs.mjs'
 import { createCollectionArtifactService } from './services/collection-artifacts.mjs'
 import { createCollectionPublishService } from './services/collection-publish.mjs'
-import { createCollectorCredentialStore } from './services/collector-credentials.mjs'
+import { createCollectorCredentialStore, createCollectorEnvironmentProvider } from './services/collector-credentials.mjs'
+import { createConfigurationService } from './services/configuration.mjs'
+import { createCollectionDebugBudgetEnvironmentProvider, createCollectionDebugBudgetSettings } from './services/collection-debug-budget.mjs'
 import { createValidationWorkerStarter } from '../src/runner/validation-worker.mjs'
+import { loadCollectorEnvironment } from '../src/collector-config.mjs'
 
 const MAX_BODY_BYTES = 1024 * 1024
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url))
@@ -27,7 +30,10 @@ function responsePayload(error, fallbackCode = 'INTERNAL_ERROR') {
   const rawCode = typeof error?.code === 'string' ? error.code : fallbackCode
   const code = SAFE_ERROR_CODE.test(rawCode) ? rawCode : fallbackCode
   const clientError = status >= 400 && status < 500
-  return { status, body: { error: clientError ? 'Invalid request' : 'Service unavailable', code, details: null } }
+  const message = typeof error?.message === 'string' && error.message.trim()
+    ? error.message.trim()
+    : clientError ? '请求参数或操作内容不符合要求。' : '服务暂时不可用，请稍后重试。'
+  return { status, body: { error: clientError ? message : '服务暂时不可用，请稍后重试。', code, details: null } }
 }
 
 function sendJson(response, status, body, headers = {}) {
@@ -94,6 +100,7 @@ function unavailableService() {
     summary: unavailable,
     listAccounts: unavailable,
     listStrategyAccounts: unavailable,
+    listAccountArticles: unavailable,
     getAccount: unavailable,
     patchAccountDecision: unavailable,
     bulkAccountDecision: unavailable,
@@ -112,6 +119,9 @@ function unavailableService() {
     listHotwords: unavailable,
     listStrategyKeywords: unavailable,
     getHotword: unavailable,
+    listHotwordHistory: unavailable,
+    listHotwordArticles: unavailable,
+    listArticleHotwords: unavailable,
     updateHotword: unavailable,
     deleteHotword: unavailable,
     mergePreview: unavailable,
@@ -132,6 +142,10 @@ function unavailableService() {
     deleteCollectorScript: unavailable,
     getCollectorCredential: unavailable,
     setCollectorCredential: unavailable,
+    getConfiguration: unavailable,
+    setConfiguration: unavailable,
+    getCollectionDebugApiBudget: unavailable,
+    setCollectionDebugApiBudget: unavailable,
     createCollectionScriptRun: unavailable,
     listCollectionScriptRuns: unavailable,
     listCollectionWorkflows: unavailable,
@@ -147,7 +161,10 @@ function unavailableService() {
     listCollectionRuns: unavailable,
     getCollectionRun: unavailable,
     listCollectionRunSteps: unavailable,
+    getCollectionStepLog: unavailable,
     createCollectionRun: unavailable,
+    createCollectionWorkflowStepRun: unavailable,
+    continueCollectionWorkflowFromStep: unavailable,
     cancelCollectionRun: unavailable,
     retainCollectionRun: unavailable,
     skipCollectionStep: unavailable,
@@ -172,21 +189,27 @@ function decodePathSegment(value) {
 }
 
 function defaultService() {
-  const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+  const collectorEnvironment = loadCollectorEnvironment()
+  const url = collectorEnvironment.SUPABASE_URL
+  const key = collectorEnvironment.SUPABASE_SECRET_KEY || collectorEnvironment.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) return unavailableService()
   const client = createSupabaseClient({ url, key })
   const collectionDb = createCollectionDb({ url, key })
   const collectors = createCollectorService({ client: collectionDb })
   const credentials = createCollectorCredentialStore()
+  const configuration = createConfigurationService({ credentialStore: credentials })
+  const artifactRoot = path.resolve('data/collection-runs')
+  const debugApiBudget = createCollectionDebugBudgetSettings({ artifactRoot })
+  const credentialEnvironment = createCollectorEnvironmentProvider({ store: credentials })
+  const runEnvironment = createCollectionDebugBudgetEnvironmentProvider({ baseEnvironmentProvider: credentialEnvironment, settings: debugApiBudget })
   const workflows = createWorkflowService({ client: collectionDb })
   const runs = createCollectionRunService({
     client: collectionDb,
     startValidationRun: createValidationWorkerStarter({
-      envProvider: () => ({ ...process.env, ...credentials.toEnvironment() })
+      envProvider: runEnvironment
     })
   })
-  const artifacts = createCollectionArtifactService({ root: path.resolve('data/collection-runs'), runService: runs })
+  const artifacts = createCollectionArtifactService({ root: artifactRoot, runService: runs })
   const publish = createCollectionPublishService({ artifactService: artifacts, runService: runs })
   return Object.freeze({
     ...createAccountsArticlesService({ client }),
@@ -198,6 +221,10 @@ function defaultService() {
     deleteCollectorScript: collectors.remove,
     getCollectorCredential: credentials.get,
     setCollectorCredential: credentials.set,
+    getConfiguration: configuration.get,
+    setConfiguration: configuration.set,
+    getCollectionDebugApiBudget: debugApiBudget.get,
+    setCollectionDebugApiBudget: debugApiBudget.set,
     createCollectionScriptRun: runs.createScriptRun,
     listCollectionScriptRuns: runs.scriptRuns,
     listCollectionWorkflows: workflows.list,
@@ -213,7 +240,10 @@ function defaultService() {
     listCollectionRuns: runs.list,
     getCollectionRun: runs.get,
     listCollectionRunSteps: runs.steps,
+    getCollectionStepLog: artifacts.getStepLog,
     createCollectionRun: runs.create,
+    createCollectionWorkflowStepRun: (workflowId, stepId, input) => runs.createFromStep(workflowId, stepId, 'single_step', input),
+    continueCollectionWorkflowFromStep: (workflowId, stepId, input) => runs.createFromStep(workflowId, stepId, 'continue', input),
     cancelCollectionRun: runs.cancel,
     retainCollectionRun: runs.retain,
     skipCollectionStep: runs.skipStep,
@@ -290,6 +320,9 @@ export function createManagementServer({ service = defaultService(), token, toke
         if (method === 'POST' && requestUrl.pathname === '/api/executions') {
           return sendJson(response, 501, { error: 'Service unavailable', code: 'CAPABILITY_UNAVAILABLE', details: null })
         }
+        if (method === 'PUT' && requestUrl.pathname === '/api/collection/debug-api-budget' && typeof service.setCollectionDebugApiBudget === 'function') {
+          return sendJson(response, 200, await service.setCollectionDebugApiBudget(body))
+        }
         if (method === 'POST' && requestUrl.pathname === '/api/collection/scripts' && typeof service.createCollectorScript === 'function') {
           return sendJson(response, 201, await service.createCollectorScript(body))
         }
@@ -306,6 +339,14 @@ export function createManagementServer({ service = defaultService(), token, toke
         }
         if (method === 'POST' && requestUrl.pathname === '/api/collection/runs' && typeof service.createCollectionRun === 'function') {
           return sendJson(response, 201, await service.createCollectionRun(body))
+        }
+        const workflowStepRun = /^\/api\/collection\/workflows\/([^/]+)\/steps\/([^/]+)\/run$/u.exec(requestUrl.pathname)
+        if (method === 'POST' && workflowStepRun && typeof service.createCollectionWorkflowStepRun === 'function') {
+          return sendJson(response, 201, await service.createCollectionWorkflowStepRun(decodePathSegment(workflowStepRun[1]), decodePathSegment(workflowStepRun[2]), body))
+        }
+        const workflowContinue = /^\/api\/collection\/workflows\/([^/]+)\/continue-from\/([^/]+)$/u.exec(requestUrl.pathname)
+        if (method === 'POST' && workflowContinue && typeof service.continueCollectionWorkflowFromStep === 'function') {
+          return sendJson(response, 201, await service.continueCollectionWorkflowFromStep(decodePathSegment(workflowContinue[1]), decodePathSegment(workflowContinue[2]), body))
         }
         const collectionScriptRun = /^\/api\/collection\/scripts\/([^/]+)\/runs$/u.exec(requestUrl.pathname)
         if (method === 'POST' && collectionScriptRun && typeof service.createCollectionScriptRun === 'function') {
@@ -448,6 +489,15 @@ export function createManagementServer({ service = defaultService(), token, toke
         }
       }
       if (requestUrl.pathname === '/api/summary') return sendJson(response, 200, { tables: await service.summary() })
+      if (requestUrl.pathname === '/api/configuration' && method === 'GET' && typeof service.getConfiguration === 'function') {
+        return sendJson(response, 200, await service.getConfiguration())
+      }
+      if (requestUrl.pathname === '/api/configuration' && method === 'PUT' && typeof service.setConfiguration === 'function') {
+        return sendJson(response, 200, await service.setConfiguration(body))
+      }
+      if (requestUrl.pathname === '/api/collection/debug-api-budget' && typeof service.getCollectionDebugApiBudget === 'function') {
+        return sendJson(response, 200, await service.getCollectionDebugApiBudget())
+      }
       if (requestUrl.pathname === '/api/collection/scripts' && typeof service.listCollectorScripts === 'function') {
         return sendJson(response, 200, await service.listCollectorScripts(Object.fromEntries(requestUrl.searchParams.entries())))
       }
@@ -480,6 +530,10 @@ export function createManagementServer({ service = defaultService(), token, toke
       if (requestUrl.pathname === '/api/collection/artifacts/candidates' && typeof service.listCollectionArtifactCandidates === 'function') {
         return sendJson(response, 200, await service.listCollectionArtifactCandidates(Object.fromEntries(requestUrl.searchParams.entries())))
       }
+      const collectionRunStepLog = /^\/api\/collection\/runs\/([^/]+)\/steps\/([^/]+)\/log$/u.exec(requestUrl.pathname)
+      if (collectionRunStepLog && typeof service.getCollectionStepLog === 'function') {
+        return sendJson(response, 200, await service.getCollectionStepLog(decodePathSegment(collectionRunStepLog[1]), decodePathSegment(collectionRunStepLog[2]), Object.fromEntries(requestUrl.searchParams.entries())))
+      }
       const collectionRunSteps = /^\/api\/collection\/runs\/([^/]+)\/steps$/u.exec(requestUrl.pathname)
       if (collectionRunSteps && typeof service.listCollectionRunSteps === 'function') {
         return sendJson(response, 200, await service.listCollectionRunSteps(decodePathSegment(collectionRunSteps[1]), Object.fromEntries(requestUrl.searchParams.entries())))
@@ -505,12 +559,20 @@ export function createManagementServer({ service = defaultService(), token, toke
       if (requestUrl.pathname === '/api/accounts' && typeof service.listAccounts === 'function') {
         return sendJson(response, 200, await service.listAccounts(Object.fromEntries(requestUrl.searchParams.entries())))
       }
+      const accountArticles = /^\/api\/accounts\/([^/]+)\/articles$/u.exec(requestUrl.pathname)
+      if (accountArticles && typeof service.listAccountArticles === 'function') {
+        return sendJson(response, 200, await service.listAccountArticles(decodePathSegment(accountArticles[1]), Object.fromEntries(requestUrl.searchParams.entries())))
+      }
       const accountId = /^\/api\/accounts\/([^/]+)$/u.exec(requestUrl.pathname)
       if (accountId && typeof service.getAccount === 'function') {
         return sendJson(response, 200, await service.getAccount(decodePathSegment(accountId[1])))
       }
       if (requestUrl.pathname === '/api/articles' && typeof service.listArticles === 'function') {
         return sendJson(response, 200, await service.listArticles(Object.fromEntries(requestUrl.searchParams.entries())))
+      }
+      const articleHotwords = /^\/api\/articles\/by-key\/([^/]+)\/hotwords$/u.exec(requestUrl.pathname)
+      if (articleHotwords && typeof service.listArticleHotwords === 'function') {
+        return sendJson(response, 200, await service.listArticleHotwords(decodePathSegment(articleHotwords[1])))
       }
       if (requestUrl.pathname === '/api/rules/groups' && typeof service.listRuleGroups === 'function') {
         return sendJson(response, 200, await service.listRuleGroups())
@@ -535,6 +597,14 @@ export function createManagementServer({ service = defaultService(), token, toke
       const hotwordId = /^\/api\/hotwords\/([^/]+)$/u.exec(requestUrl.pathname)
       if (hotwordId && typeof service.getHotword === 'function') {
         return sendJson(response, 200, await service.getHotword(decodePathSegment(hotwordId[1])))
+      }
+      const hotwordHistory = /^\/api\/hotwords\/([^/]+)\/history$/u.exec(requestUrl.pathname)
+      if (hotwordHistory && typeof service.listHotwordHistory === 'function') {
+        return sendJson(response, 200, await service.listHotwordHistory(decodePathSegment(hotwordHistory[1]), Object.fromEntries(requestUrl.searchParams.entries())))
+      }
+      const hotwordArticles = /^\/api\/hotwords\/([^/]+)\/articles$/u.exec(requestUrl.pathname)
+      if (hotwordArticles && typeof service.listHotwordArticles === 'function') {
+        return sendJson(response, 200, await service.listHotwordArticles(decodePathSegment(hotwordArticles[1]), Object.fromEntries(requestUrl.searchParams.entries())))
       }
       const strategyId = /^\/api\/strategies\/([^/]+)$/u.exec(requestUrl.pathname)
       if (strategyId && typeof service.getStrategy === 'function') {

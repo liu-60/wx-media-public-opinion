@@ -38,7 +38,7 @@ function artifactRef(value, field = 'artifact') {
   const sha256 = text(ref.sha256 ?? ref.hash, `${field}.sha256`, { max: 128 })
   if (!/^[a-f0-9]{32,128}$/iu.test(sha256)) invalid(`${field}.sha256 is invalid`)
   const output = { artifact_id: artifactId, sha256 }
-  for (const key of ['artifact_type', 'schema_version', 'source_run_id', 'relative_path', 'kind']) {
+  for (const key of ['artifact_type', 'schema_version', 'source_run_id', 'relative_path', 'kind', 'producer_step_key']) {
     if (ref[key] !== undefined && ref[key] !== null) output[key] = text(ref[key], `${field}.${key}`, { max: 256 })
   }
   if (ref.record_count !== undefined && ref.record_count !== null) output.record_count = nonnegativeInteger(ref.record_count, `${field}.record_count`)

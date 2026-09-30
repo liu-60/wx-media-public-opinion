@@ -1,4 +1,6 @@
-const DEFAULT_BASE_URL = 'https://wxrank.com'
+import { loadCollectorEnvironment } from './collector-config.mjs'
+
+const DEFAULT_BASE_URL = loadCollectorEnvironment().WXRANK_ACCOUNT_API_URL || 'https://wxrank.com'
 
 function endpoint(baseUrl, path) {
   return `${String(baseUrl || DEFAULT_BASE_URL).replace(/\/$/u, '')}${path}`
@@ -19,7 +21,7 @@ function listFromBody(body) {
 
 export async function fetchAccountSources({
   fetchImpl = globalThis.fetch,
-  baseUrl = DEFAULT_BASE_URL,
+  baseUrl = loadCollectorEnvironment().WXRANK_ACCOUNT_API_URL || DEFAULT_BASE_URL,
   headers = {},
   range = '30d',
   page = 1
@@ -105,7 +107,7 @@ async function fetchRankedArticleSource({ fetchImpl, url, headers, source, timeo
 
 export async function fetchRankedArticleSources({
   fetchImpl = globalThis.fetch,
-  baseUrl = DEFAULT_BASE_URL,
+  baseUrl = loadCollectorEnvironment().WXRANK_ACCOUNT_API_URL || DEFAULT_BASE_URL,
   headers = {},
   range = '7d',
   page = 1,

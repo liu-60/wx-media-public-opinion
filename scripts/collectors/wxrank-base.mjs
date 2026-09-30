@@ -1,12 +1,14 @@
 import { fetchAccountSources } from '../../src/wxrank-client.mjs'
+import { loadCollectorEnvironment } from '../../src/collector-config.mjs'
 import { readCollectorInput, runCollectorMain, writeArtifact } from '../../src/runner/script-runtime.mjs'
 
 async function collect(input) {
   const started = Date.now()
   const headers = {}
-  if (process.env.WXRANK_AUTHORIZATION) headers.authorization = process.env.WXRANK_AUTHORIZATION
-  if (process.env.WXRANK_COOKIE) headers.cookie = process.env.WXRANK_COOKIE
-  const source = await fetchAccountSources({ baseUrl: input.config.base_url || 'https://wxrank.com', range: input.config.range || '30d', headers })
+  const env = loadCollectorEnvironment()
+  if (env.WXRANK_AUTHORIZATION) headers.authorization = env.WXRANK_AUTHORIZATION
+  if (env.WXRANK_COOKIE) headers.cookie = env.WXRANK_COOKIE
+  const source = await fetchAccountSources({ baseUrl: input.config.base_url || env.WXRANK_ACCOUNT_API_URL, range: input.config.range || '30d', headers })
   const fetchedAt = new Date().toISOString()
   const raw = await writeArtifact(input.workdir, 'wxrank-base-raw.json', { source: 'wxrank', rank: source.rank, search: source.search, fetched_at: fetchedAt })
   raw.artifact_type = 'raw_response'; raw.schema_version = '1'; raw.record_count = source.rows.length
@@ -24,7 +26,7 @@ async function collect(input) {
     if (!wxBiz) errors.push({ index, code: 'IDENTITY_MISSING', message: 'wx_biz is missing', raw: row })
     return normalized
   }).filter(row => row.wx_biz)
-  const normalized = await writeArtifact(input.workdir, 'accounts.json', { source: 'wxrank', schema_version: '1', rows, fetched_at: fetchedAt })
+  const normalized = await writeArtifact(input.workdir, input.config.output_name || 'accounts.json', { source: 'wxrank', schema_version: '1', rows, fetched_at: fetchedAt })
   normalized.artifact_type = 'accounts'; normalized.schema_version = '1'; normalized.record_count = rows.length
   const errorArtifact = await writeArtifact(input.workdir, 'wxrank-base-errors.json', { source: 'wxrank', rows: errors, generated_at: fetchedAt })
   errorArtifact.artifact_type = 'exceptions'; errorArtifact.schema_version = '1'; errorArtifact.record_count = errors.length

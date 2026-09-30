@@ -1,6 +1,7 @@
 import { fetchRankedArticleSources } from '../../src/wxrank-client.mjs'
 import { articleIdentity } from '../../src/article-filter.mjs'
 import { runCollectorMain, writeArtifact } from '../../src/runner/script-runtime.mjs'
+import { loadCollectorEnvironment } from '../../src/collector-config.mjs'
 import { createSupabaseClient } from '../../management-center/services/supabase.mjs'
 import { accountRowsFromArticles, runArticleFilterStage } from './article-filter-common.mjs'
 
@@ -147,13 +148,14 @@ function updatePlan(writeSet, accountRows) {
 
 async function collect(input) {
   const started = Date.now()
+  const env = loadCollectorEnvironment()
   const headers = Object.fromEntries([
-    ['authorization', process.env.WXRANK_AUTHORIZATION],
-    ['cookie', process.env.WXRANK_COOKIE]
+    ['authorization', env.WXRANK_AUTHORIZATION],
+    ['cookie', env.WXRANK_COOKIE]
   ].filter(([, value]) => value))
   const range = text(input.config.range) || '7d'
   const page = Number(input.config.page ?? 1)
-  const source = await fetchRankedArticleSources({ baseUrl: input.config.base_url || 'https://wxrank.com', range, page, headers })
+  const source = await fetchRankedArticleSources({ baseUrl: input.config.base_url || env.WXRANK_ACCOUNT_API_URL, range, page, headers })
 
   if (source.status === 'failed') return {
     status: 'failed', input_count: null, output_count: 0, created_count: null, updated_count: null, filtered_count: null,

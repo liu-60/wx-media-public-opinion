@@ -1,10 +1,41 @@
 export class ConfigValidationError extends Error {
-  constructor(code, message = 'Invalid request') {
+  constructor(code, message = validationMessage(code)) {
     super(message)
     this.name = 'ConfigValidationError'
     this.code = code
     this.status = 400
   }
+}
+
+function validationMessage(code) {
+  const messages = {
+    INVALID_PAYLOAD: '请求正文格式无效，请提供 JSON 对象。',
+    INVALID_NAME: '名称不能为空。',
+    INVALID_STEP: '步骤必须提供步骤标识和已有脚本。',
+    INVALID_STEPS: '步骤列表必须是非空数组。',
+    WORKFLOW_NOT_FOUND: '指定的工作流不存在。',
+    SCRIPT_NOT_FOUND: '指定的脚本不存在，请从脚本库选择已有脚本。',
+    STEP_KEY_DUPLICATE: '该工作流中已存在相同的步骤标识。',
+    STEP_SEQUENCE_DUPLICATE: '该工作流中已存在相同的步骤顺序，请调整顺序后重试。',
+    STEP_NOT_FOUND: '指定的工作流步骤不存在。',
+    STEP_WORKFLOW_IMMUTABLE: '步骤不能移动到其他工作流，请在目标工作流中重新添加。',
+    INVALID_BOOLEAN: '布尔参数只能填写 true 或 false。',
+    INTEGER_REQUIRED: '缺少必填整数参数。',
+    INVALID_INTEGER: '整数参数数值或允许范围不正确。',
+    NUMBER_REQUIRED: '缺少必填数字参数。',
+    INVALID_NUMBER: '数字参数格式或允许范围不正确。',
+    TEXT_REQUIRED: '缺少必填文本参数。',
+    INVALID_TEXT: '文本参数为空、过长或格式不正确。',
+    DATE_REQUIRED: '缺少必填日期参数。',
+    INVALID_DATE: '日期必须是有效的 YYYY-MM-DD 格式。',
+    MONTH_REQUIRED: '缺少必填月份参数。',
+    INVALID_MONTH: '月份必须是有效的 YYYY-MM 格式。',
+    ENUM_REQUIRED: '缺少必选项。',
+    INVALID_ENUM: '所选值不在允许范围内。',
+    INVALID_ID: '标识格式不正确。',
+    INVALID_TEXT_ARRAY: '文本列表格式或数量不正确。'
+  }
+  return messages[code] || '请求参数不符合要求，请检查必填项、字段类型和允许范围。'
 }
 
 function invalid(code) {
@@ -22,13 +53,16 @@ function text(value, { required = false, min = 0, max = 500 } = {}) {
   return result
 }
 
-function integer(value, { min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER, required = false } = {}) {
+function integer(value, { min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER, required = false, label = '' } = {}) {
   if (value === undefined || value === null || value === '') {
-    if (required) invalid('INTEGER_REQUIRED')
+    if (required) throw new ConfigValidationError('INTEGER_REQUIRED', `${label || '整数参数'}为必填项。`)
     return undefined
   }
   const result = typeof value === 'number' ? value : Number(String(value).trim())
-  if (!Number.isSafeInteger(result) || result < min || result > max) invalid('INVALID_INTEGER')
+  if (!Number.isSafeInteger(result) || result < min || result > max) {
+    const bounds = min === 0 ? `0 到 ${max}` : `${min} 到 ${max}`
+    throw new ConfigValidationError('INVALID_INTEGER', `${label || '整数参数'}必须是 ${bounds} 之间的整数。`)
+  }
   return result
 }
 

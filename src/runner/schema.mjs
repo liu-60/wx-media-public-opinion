@@ -89,6 +89,9 @@ export function createCollectionSchema(db) {
     CREATE TABLE IF NOT EXISTS collection_step_runs (
       id TEXT PRIMARY KEY,
       run_id TEXT NOT NULL REFERENCES collection_runs(id) ON DELETE CASCADE,
+      workflow_run_id TEXT NOT NULL REFERENCES collection_runs(id) ON DELETE CASCADE,
+      step_id INTEGER,
+      script_id INTEGER,
       step_key TEXT NOT NULL,
       ${jsonColumn('script_snapshot')},
       attempt INTEGER NOT NULL DEFAULT 1 CHECK(attempt >= 1),
@@ -105,6 +108,7 @@ export function createCollectionSchema(db) {
       error_code TEXT,
       error_message TEXT,
       ${jsonColumn('checkpoint')},
+      ${jsonColumn('summary')},
       ${jsonColumn('artifact_manifest')},
       log_ref TEXT,
       input_hash TEXT,
@@ -123,6 +127,14 @@ export function createCollectionSchema(db) {
   const workflowColumns = columns('collection_workflows')
   if (!workflowColumns.has('system_generated')) db.exec('ALTER TABLE collection_workflows ADD COLUMN system_generated INTEGER NOT NULL DEFAULT 0 CHECK(system_generated IN (0,1))')
   if (!workflowColumns.has('validation_only')) db.exec('ALTER TABLE collection_workflows ADD COLUMN validation_only INTEGER NOT NULL DEFAULT 0 CHECK(validation_only IN (0,1))')
+  const stepRunColumns = columns('collection_step_runs')
+  if (!stepRunColumns.has('workflow_run_id')) db.exec('ALTER TABLE collection_step_runs ADD COLUMN workflow_run_id TEXT REFERENCES collection_runs(id) ON DELETE CASCADE')
+  if (!stepRunColumns.has('step_id')) db.exec('ALTER TABLE collection_step_runs ADD COLUMN step_id INTEGER')
+  if (!stepRunColumns.has('script_id')) db.exec('ALTER TABLE collection_step_runs ADD COLUMN script_id INTEGER')
+  if (!stepRunColumns.has('summary')) db.exec("ALTER TABLE collection_step_runs ADD COLUMN summary TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(summary) AND json_type(summary) = 'object')")
+  if (!stepRunColumns.has('created_at')) db.exec("ALTER TABLE collection_step_runs ADD COLUMN created_at TEXT NOT NULL DEFAULT ''")
+  if (!stepRunColumns.has('updated_at')) db.exec("ALTER TABLE collection_step_runs ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''")
+  db.exec('UPDATE collection_step_runs SET workflow_run_id=run_id WHERE workflow_run_id IS NULL')
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS collection_validation_workflow_name_idx ON collection_workflows(name) WHERE validation_only=1')
   db.exec(`
     CREATE INDEX IF NOT EXISTS collector_scripts_enabled_idx ON collector_scripts(enabled, script_key, version DESC);
@@ -130,6 +142,7 @@ export function createCollectionSchema(db) {
     CREATE INDEX IF NOT EXISTS collection_runs_queue_idx ON collection_runs(status, lease_until, created_at);
     CREATE INDEX IF NOT EXISTS collection_runs_script_idx ON collection_runs(script_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS collection_step_runs_run_idx ON collection_step_runs(run_id, step_key, attempt DESC);
+    CREATE INDEX IF NOT EXISTS collection_step_runs_step_idx ON collection_step_runs(step_id, script_id, created_at DESC);
   `)
   return db
 }

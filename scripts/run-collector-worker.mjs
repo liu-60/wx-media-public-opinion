@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { mkdir } from 'node:fs/promises'
 import { openDatabase } from '../src/db.mjs'
 import { argumentsMap } from '../src/runner/cli.mjs'
@@ -14,8 +14,16 @@ import { runWorkflow } from '../src/runner/runner.mjs'
 import { validateOutputArtifacts } from '../src/runner/workflow.mjs'
 import { materializeInputArtifacts } from '../src/runner/input-artifacts.mjs'
 import { canonicalizeArtifactRefs, normalizeArtifactEntry } from '../src/runner/artifact-contract.mjs'
+import { createCollectorEnvironmentProvider } from '../management-center/services/collector-credentials.mjs'
+import { createCollectionDebugBudgetEnvironmentProvider, createCollectionDebugBudgetSettings, resolveCollectionDebugApiBudgetFile } from '../management-center/services/collection-debug-budget.mjs'
 
 const PROJECT_ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
+
+function debugApiBudgetFile(artifactRoot) {
+  if (process.env.COLLECTION_DEBUG_API_BUDGET_FILE) return resolveCollectionDebugApiBudgetFile({ artifactRoot })
+  if (process.env.NODE_ENV === 'production') return null
+  return resolveCollectionDebugApiBudgetFile({ artifactRoot })
+}
 
 function refList(value) { return Array.isArray(value) ? value : value ? [value] : [] }
 
@@ -34,7 +42,10 @@ async function persistArtifactManifest(store, runId, manifest) {
   }
 }
 
-async function executeRun({ run, store, artifacts, sourceArtifacts = artifacts, allowUntrackedLocal, leaseSeconds }) {
+async function executeRun({ run, store, artifacts, sourceArtifacts = artifacts, allowUntrackedLocal, leaseSeconds, envProvider = null }) {
+  // Read the server-only store after claiming each Run, so long-lived workers
+  // use the newest saved keys without persisting them in the Run or its logs.
+  const runEnvironment = typeof envProvider === 'function' ? envProvider() : process.env
   const runRoot = artifacts.runPath(run.id)
   await mkdir(runRoot, { recursive: true })
   const ruleSnapshot = await artifacts.writeJson(run.id, 'rule-snapshot.json', run.rule_snapshot || {})
@@ -50,7 +61,7 @@ async function executeRun({ run, store, artifacts, sourceArtifacts = artifacts, 
   } catch (error) {
     const step = run.workflow_snapshot?.steps?.[0]
     if (step) {
-      const stepRun = await store.createStepRun({ runId: run.id, stepKey: step.step_key, scriptSnapshot: step.script_snapshot || {}, attempt: 1, status: 'blocked' })
+      const stepRun = await store.createStepRun({ runId: run.id, stepId: step.id, scriptId: step.script_id, stepKey: step.step_key, scriptSnapshot: step.script_snapshot || {}, attempt: 1, status: 'blocked' })
       await store.finishStepRun(stepRun.id, { status: 'blocked', error_code: error.code || 'INPUT_ARTIFACT_INVALID', error_message: error.message, finished_at: new Date().toISOString(), duration_ms: 0 })
     }
     await store.finishRun(run.id, 'blocked', { failure_count: 1, blocked_step: step?.step_key || null, blocked_reason: error.code || 'INPUT_ARTIFACT_INVALID', error_message: error.message })
@@ -101,7 +112,21 @@ async function executeRun({ run, store, artifacts, sourceArtifacts = artifacts, 
           strategy_snapshot_ref: input.strategy_snapshot_ref, publish_mode: run.config_snapshot?.publish_mode || 'preview',
           execution_mode: run.run_kind === 'single_script' || run.workflow_snapshot?.validation_only === true ? 'single_validation' : 'workflow'
         }
-        const execution = await executeCollector({ entrypoint: resolved.absolutePath, input: protocolInput, workdir: PROJECT_ROOT, timeoutMs: Number(step.timeout_seconds || snapshot.timeout_seconds || 900) * 1000 })
+        const apiBudgetFile = debugApiBudgetFile(artifacts.root)
+        const legacyLimit = runEnvironment.COLLECTION_DEBUG_API_REQUEST_LIMIT ?? '10'
+        const collectorEnv = apiBudgetFile ? {
+          ...runEnvironment,
+          COLLECTION_DEBUG_API_BUDGET_FILE: apiBudgetFile,
+          COLLECTION_DEBUG_API_REQUEST_LIMIT: legacyLimit,
+          COLLECTION_DEBUG_API_REQUEST_LIMIT_WXRANK: runEnvironment.COLLECTION_DEBUG_API_REQUEST_LIMIT_WXRANK ?? legacyLimit,
+          COLLECTION_DEBUG_API_REQUEST_LIMIT_REDFOX: runEnvironment.COLLECTION_DEBUG_API_REQUEST_LIMIT_REDFOX ?? legacyLimit
+        } : { ...runEnvironment }
+        if (apiBudgetFile) {
+          const preload = pathToFileURL(path.join(PROJECT_ROOT, 'src', 'runner', 'debug-api-request-budget.mjs')).href
+          const importFlag = `--import=${preload}`
+          if (!String(collectorEnv.NODE_OPTIONS || '').includes(importFlag)) collectorEnv.NODE_OPTIONS = `${collectorEnv.NODE_OPTIONS || ''} ${importFlag}`.trim()
+        }
+        const execution = await executeCollector({ entrypoint: resolved.absolutePath, input: protocolInput, workdir: PROJECT_ROOT, timeoutMs: Number(step.timeout_seconds || snapshot.timeout_seconds || 900) * 1000, env: collectorEnv })
         let logRef = null
         if (execution.stderr) {
           const log = await artifacts.writeLog(run.id, step.step_key, attempt, execution.stderr)
@@ -111,11 +136,15 @@ async function executeRun({ run, store, artifacts, sourceArtifacts = artifacts, 
         if (!execution.result) return { status: execution.status || 'failed', error_code: execution.error_code || 'COLLECTOR_FAILED', message: execution.error_message || 'collector did not return a result', duration_ms: null, artifact: null }
         const refs = canonicalizeArtifactRefs(execution.result.artifact)
         const debugRefs = canonicalizeArtifactRefs(execution.result.debug_artifacts).map(ref => ({ ...ref, kind: 'debug', default_visible: false }))
+        const hasResultsStep = run.workflow_snapshot?.steps?.some(candidate => candidate.script_snapshot?.script_key === 'workflow-results')
         try {
           validateOutputArtifacts(snapshot.output_schema || {}, refs, { status: execution.result.status })
           for (const ref of refs) {
             const verified = await artifacts.verify(run.id, ref.artifact_id, ref.sha256)
-            artifactEntries.push(normalizeArtifactEntry({ ...ref, step_key: step.step_key, attempt, kind: 'collector-output', default_visible: true, availability: 'available', bytes: verified.bytes }))
+            const visible = protocolInput.execution_mode !== 'workflow'
+              || snapshot.script_key === 'workflow-results'
+              || (!hasResultsStep && ['accounts', 'articles', 'hotwords'].includes(ref.artifact_type))
+            artifactEntries.push(normalizeArtifactEntry({ ...ref, step_key: step.step_key, attempt, kind: visible ? 'collector-output' : 'debug', default_visible: visible, availability: 'available', bytes: verified.bytes }))
           }
           for (const ref of debugRefs) {
             const verified = await artifacts.verify(run.id, ref.artifact_id, ref.sha256)
@@ -153,6 +182,9 @@ export async function main(argv = process.argv.slice(2)) {
   const client = remote ? createCollectionDb({ url: process.env.SUPABASE_URL, key: process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY }) : null
   const store = createRunStore({ db, client, workerId })
   const artifacts = createArtifactStore(artifactRoot)
+  const credentialEnvironment = createCollectorEnvironmentProvider()
+  const debugApiBudgetSettings = createCollectionDebugBudgetSettings({ artifactRoot })
+  const runEnvironment = createCollectionDebugBudgetEnvironmentProvider({ baseEnvironmentProvider: credentialEnvironment, settings: debugApiBudgetSettings })
   const testArtifacts = createArtifactStore(testArtifactRoot)
   const targetRunId = args['run-id'] && args['run-id'] !== true ? String(args['run-id']) : null
   const waitSeconds = Math.max(5, Number(args['wait-seconds'] || 1800))
@@ -187,7 +219,7 @@ export async function main(argv = process.argv.slice(2)) {
       process.stdout.write(`${JSON.stringify({ status: run.status, run_id: run.id, worker_id: workerId, recovered }, null, 2)}\n`)
       return { status: run.status, run }
     }
-    const result = await executeRun({ run, store, artifacts, sourceArtifacts: testArtifacts, allowUntrackedLocal, leaseSeconds })
+    const result = await executeRun({ run, store, artifacts, sourceArtifacts: testArtifacts, allowUntrackedLocal, leaseSeconds, envProvider: runEnvironment })
     process.stdout.write(`${JSON.stringify({ status: result.status, run_id: run.id, worker_id: workerId, recovered, database: dbPath, artifact_root: artifactRoot }, null, 2)}\n`)
     return result
   } catch (error) {

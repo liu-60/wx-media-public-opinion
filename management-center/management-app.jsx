@@ -51,6 +51,7 @@ import {
   FileTextOutlined,
   FilterOutlined,
   FireOutlined,
+  LinkOutlined,
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
@@ -64,6 +65,7 @@ import { normalizeMultipleValue, normalizeRuleEditorValues, serializeDateValue }
 import { getBodyPopupContainer } from './public/popup-containers.mjs'
 import { StrategyPage } from './strategy/strategy-app.jsx'
 import { CollectionPage } from './collection/CollectionPage.jsx'
+import { ConfigurationPage } from './configuration/ConfigurationPage.jsx'
 import {
   ACCOUNT_FIELD_LABELS,
   ARTICLE_FIELD_LABELS,
@@ -92,7 +94,8 @@ const NAV_ITEMS = Object.freeze([
   { key: 'rules', label: '过滤规则', icon: <FilterOutlined /> },
   { key: 'hotwords', label: '热词管理', icon: <FireOutlined /> },
   { key: 'strategies', label: '采集策略', icon: <SettingOutlined /> },
-  { key: 'collection', label: '采集编排', icon: <DeploymentUnitOutlined /> }
+  { key: 'collection', label: '采集编排', icon: <DeploymentUnitOutlined /> },
+  { key: 'configuration', label: '配置信息', icon: <SettingOutlined /> }
 ])
 
 const VIEW_META = Object.freeze(Object.fromEntries(NAV_ITEMS.map(item => [item.key, item])))
@@ -174,16 +177,37 @@ function ErrorState({ title = '加载失败', error, onRetry }) {
 }
 
 function PaginationConfig({ result, onChange }) {
+  const page = result?.page || 1
+  const pageSize = result?.pageSize || 20
+  const itemCount = Array.isArray(result?.items) ? result.items.length : 0
+  const totalKnown = Number.isFinite(result?.total)
   return {
-    current: result?.page || 1,
-    pageSize: result?.pageSize || 20,
-    total: result?.total ?? 0,
+    current: page,
+    pageSize,
+    total: totalKnown ? result.total : Math.max((page - 1) * pageSize + itemCount + (itemCount === pageSize ? 1 : 0), page > 1 ? (page - 1) * pageSize : 1),
     showSizeChanger: { getPopupContainer: getBodyPopupContainer },
     pageSizeOptions: PAGE_SIZE_OPTIONS,
     showQuickJumper: true,
-    showTotal: total => `共 ${total} 条`,
+    showTotal: total => totalKnown ? `共 ${total} 条` : `总数未知 · 当前页 ${itemCount} 条`,
     onChange
   }
+}
+
+function resultCountDescription(loadState, result, unit) {
+  if (loadState?.loading) return '正在加载…'
+  if (loadState?.error) return '数据暂不可用'
+  if (Number.isFinite(result?.total)) return `共 ${result.total} ${unit}`
+  const currentPageCount = Array.isArray(result?.items) ? result.items.length : 0
+  return `当前页 ${currentPageCount} ${unit} · 总数未知`
+}
+
+function hasActiveFilters(filters, ignored = []) {
+  const ignoredKeys = new Set(ignored)
+  return Object.entries(filters || {}).some(([key, value]) => {
+    if (ignoredKeys.has(key) || value === undefined || value === null || value === '') return false
+    if (Array.isArray(value)) return value.length > 0
+    return true
+  })
 }
 
 function MetricRange({ label, minName, maxName, decimal = false }) {
@@ -242,10 +266,25 @@ function AccountFilter({ form, filters, onSubmit, onReset, embedded = false }) {
 
 function AccountDetailDrawer({ open, accountId, canWrite, onClose, onDecision, onChanged }) {
   const [state, setState] = useState({ loading: false, error: null, item: null })
+  const [articleState, setArticleState] = useState({ loading: false, error: null, items: [], total: null })
+  const [articlePagination, setArticlePagination] = useState({ accountId: null, page: 1 })
+  const articleIdentity = open && accountId ? String(accountId) : null
+  const articlePage = articlePagination.accountId === articleIdentity ? articlePagination.page : 1
+  const setArticlePage = next => setArticlePagination(current => {
+    const currentPage = current.accountId === articleIdentity ? current.page : 1
+    return { accountId: articleIdentity, page: typeof next === 'function' ? next(currentPage) : next }
+  })
+  const articlePageSize = 8
   const [savingTags, setSavingTags] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [form] = Form.useForm()
   const { message: appMessage } = AntApp.useApp()
+  useEffect(() => {
+    if (!open) setArticlePagination({ accountId: null, page: 1 })
+  }, [open])
+  useEffect(() => {
+    setArticleState({ loading: Boolean(open && accountId), error: null, items: [], total: null })
+  }, [open, accountId])
   useEffect(() => {
     if (!open || !accountId) return
     let active = true
@@ -257,6 +296,17 @@ function AccountDetailDrawer({ open, accountId, canWrite, onClose, onDecision, o
     }).catch(error => { if (active) setState({ loading: false, error: errorMessage(error), item: null }) })
     return () => { active = false }
   }, [open, accountId, reloadKey])
+
+  useEffect(() => {
+    if (!open || !accountId) return
+    let active = true
+    setArticleState(current => ({ ...current, loading: true, error: null }))
+    const query = new URLSearchParams({ page: String(articlePage), pageSize: String(articlePageSize) })
+    api.get(`/api/accounts/${encodeURIComponent(accountId)}/articles?${query}`, { key: `account:${accountId}:articles:${articlePage}`, cache: false })
+      .then(result => { if (active) setArticleState({ loading: false, error: null, items: result.items || [], total: result.total ?? null }) })
+      .catch(error => { if (active) setArticleState(current => ({ ...current, loading: false, error: errorMessage(error) })) })
+    return () => { active = false }
+  }, [open, accountId, articlePage, reloadKey])
 
   const item = state.item
   const profile = item?.profile || {}
@@ -273,11 +323,32 @@ function AccountDetailDrawer({ open, accountId, canWrite, onClose, onDecision, o
     ]} /> },
     { key: 'activity', label: '活跃数据', children: <Descriptions size="small" column={2} colon={false} items={[
       { key: 'last_pub_time', label: ACCOUNT_FIELD_LABELS.last_pub_time, children: formatDateTime(profile.last_pub_time) },
-      { key: 'pub_count', label: ACCOUNT_FIELD_LABELS.pub_count, children: formatMetric(profile.pub_count) },
+      { key: 'pub_count', label: '资料发文数', children: formatMetric(profile.pub_count) },
       { key: 'active_days', label: ACCOUNT_FIELD_LABELS.active_days, children: formatMetric(profile.active_days) },
       { key: 'ori_count', label: ACCOUNT_FIELD_LABELS.ori_count, children: formatMetric(profile.ori_count) },
       { key: 'collected_at', label: ACCOUNT_FIELD_LABELS.collected_at, children: formatDateTime(profile.collected_at) }
     ]} /> },
+    { key: 'articles', label: '相关文章', children: <>
+      {articleState.error ? <Alert type="warning" showIcon message="相关文章暂不可用" description={articleState.error} /> : null}
+      <List
+        loading={articleState.loading}
+        dataSource={articleState.items}
+        locale={{ emptyText: <Empty description={articleState.error ? '关联文章加载失败' : '该账号暂无可展示的文章'} /> }}
+        renderItem={article => <List.Item actions={safeImage(article.article_url) ? [<Button key="open-article" type="link" href={safeImage(article.article_url)} target="_blank" rel="noreferrer" icon={<LinkOutlined />}>打开原文</Button>] : []}>
+          <List.Item.Meta
+            title={safeImage(article.article_url) ? <a href={safeImage(article.article_url)} target="_blank" rel="noreferrer">{article.title || '未命名文章'}</a> : article.title || '未命名文章'}
+            description={`${formatDateTime(article.published_at)} · 阅读 ${displayFieldValue('read_num', article.read_num, article)}`}
+          />
+        </List.Item>}
+      />
+      <Space style={{ width: '100%', justifyContent: 'space-between', marginTop: 8 }}>
+        <Typography.Text type="secondary">{Number.isFinite(articleState.total) ? `共 ${articleState.total} 篇 · ` : '总数未知 · '}第 ${articlePage} 页</Typography.Text>
+        <Space size={4}>
+          <Button size="small" disabled={articlePage <= 1 || articleState.loading} onClick={() => setArticlePage(value => Math.max(1, value - 1))}>上一页</Button>
+          <Button size="small" disabled={articleState.loading || (Number.isFinite(articleState.total) ? articlePage * articlePageSize >= articleState.total : articleState.items.length < articlePageSize)} onClick={() => setArticlePage(value => value + 1)}>下一页</Button>
+        </Space>
+      </Space>
+    </> },
     { key: 'metrics', label: '阅读与互动', children: <Descriptions size="small" column={2} colon={false} items={['read_avg', 'read_median', 'read_max', 'burst_count', 'burst_rate', 'like_avg', 'share_avg', 'comment_avg'].map(field => ({ key: field, label: ACCOUNT_FIELD_LABELS[field], children: displayFieldValue(field, profile[field] ?? item[field]) }))} /> },
     { key: 'system', label: '系统信息', children: <Descriptions size="small" column={2} colon={false} items={[
       { key: 'decision_status', label: ACCOUNT_FIELD_LABELS.decision_status, children: <StatusTag value={item.decision_status} /> },
@@ -306,6 +377,7 @@ function AccountDetailDrawer({ open, accountId, canWrite, onClose, onDecision, o
     {state.loading ? <Skeleton active paragraph={{ rows: 12 }} /> : state.error ? <ErrorState title="账号详情加载失败" error={state.error} onRetry={() => setReloadKey(value => value + 1)} /> : item ? <>
       <Space className="detail-actions" wrap><Button size="small" type="primary" ghost disabled={!canWrite} icon={<CheckOutlined />} onClick={() => onDecision(item, 1)}>通过</Button><Button size="small" danger ghost disabled={!canWrite} onClick={() => onDecision(item, 2)}>过滤</Button><StatusTag value={item.decision_status} /></Space>
       <Tabs items={sections} />
+      <Alert type="info" showIcon message="账号采集状态按已有资料展示" description="当前账号资料包含最近资料采集时间，但没有逐账号运行结果；缺少时间记录不能据此判断为未采集或采集失败。" />
       <Divider orientation="left" plain>人工标签</Divider>
       <Form form={form} layout="vertical" onFinish={saveTags} initialValues={{ manual_tags: parseListValue(profile.manual_tags) }}>
         <Form.Item label="人工标签" name="manual_tags"><Select getPopupContainer={getBodyPopupContainer} mode="tags" tokenSeparators={[',', '，']} placeholder="输入后回车添加" /></Form.Item>
@@ -319,7 +391,7 @@ function AccountsPage({ canWrite, refreshKey }) {
   const [form] = Form.useForm()
   const { message: appMessage } = AntApp.useApp()
   const [filters, setFilters] = useState({ metricField: 'account.read_median' })
-  const [result, setResult] = useState({ items: [], total: 0, page: 1, pageSize: 20 })
+  const [result, setResult] = useState({ items: [], total: null, page: 1, pageSize: 20 })
   const [loadState, setLoadState] = useState({ loading: true, error: null })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
@@ -371,7 +443,10 @@ function AccountsPage({ canWrite, refreshKey }) {
   const columns = useMemo(() => {
     const field = (dataIndex, title, render, extra = {}) => ({ key: dataIndex, dataIndex, title, render, ...extra })
     const base = [
-      { key: 'publisher', title: '公众号', fixed: 'left', width: 220, render: (_, row) => <Space><AccountAvatar row={row} /><div className="table-primary"><Button type="link" className="table-link" onClick={() => setDetailId(row.account_id)}>{row.wx_name || '未命名账号'}</Button><Typography.Text type="secondary" ellipsis>{row.wx_biz || '—'}</Typography.Text></div></Space> },
+      { key: 'publisher', title: '公众号', fixed: 'left', width: 220, render: (_, row) => {
+        const articleUrl = safeImage(row.latest_article_url)
+        return <Space><AccountAvatar row={row} /><div className="table-primary"><Space size={0} align="center"><Button type="link" className="table-link" onClick={() => setDetailId(row.account_id)}>{row.wx_name || '未命名账号'}</Button>{articleUrl ? <Tooltip getPopupContainer={getBodyPopupContainer} title="打开最新采集文章"><Button type="link" size="small" aria-label={`打开${row.wx_name || '该账号'}最新采集文章`} href={articleUrl} target="_blank" rel="noreferrer" icon={<LinkOutlined />} /></Tooltip> : null}</Space><Typography.Text type="secondary" ellipsis>{row.wx_biz || '—'}</Typography.Text></div></Space>
+      } },
       field('verify', '认证信息', value => value ? <Tooltip getPopupContainer={getBodyPopupContainer} title={value}><Tag color="blue">已认证</Tag></Tooltip> : <Typography.Text type="secondary">—</Typography.Text>),
       field('decision_status', '审核状态', value => <StatusTag value={value} />),
       { key: 'type_region', title: '分类 / 地区', width: 130, render: (_, row) => `${row.profile_wx_type || row.wx_type || '—'} / ${row.profile_region || row.region || '—'}` },
@@ -394,8 +469,9 @@ function AccountsPage({ canWrite, refreshKey }) {
   }, [columnsPreference, canWrite, busyId, result.items])
 
   const selectedRows = result.items.filter(row => selectedRowKeys.includes(row.account_id))
+  const emptyDescription = hasActiveFilters(filters, ['metricField']) ? '没有找到匹配的公众号' : '暂无账号数据'
   return <div className="management-page">
-    <PageHeader compact className="account-page-heading" title="账号管理" description={`共 ${result.total || 0} 个公众号 · 筛选、排序和分页由服务端执行`} actions={<><Button icon={<ReloadOutlined />} onClick={loadAccounts}>刷新列表</Button><Dropdown getPopupContainer={getBodyPopupContainer} trigger={['click']} menu={{ items: optionalOptions.map(option => ({ key: option.value, label: <Checkbox checked={columnsPreference.includes(option.value)} onChange={event => { const next = event.target.checked ? [...new Set([...columnsPreference, option.value])] : columnsPreference.filter(value => value !== option.value); setColumnsPreference(next); localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(next)) }}>{option.label}</Checkbox> })) }}><Button>列设置 <DownOutlined /></Button></Dropdown></>} />
+    <PageHeader compact className="account-page-heading" title="账号管理" description={`${resultCountDescription(loadState, result, '个公众号')} · 筛选、排序和分页由服务端执行`} actions={<><Button icon={<ReloadOutlined />} onClick={loadAccounts}>刷新列表</Button><Dropdown getPopupContainer={getBodyPopupContainer} trigger={['click']} menu={{ items: optionalOptions.map(option => ({ key: option.value, label: <Checkbox checked={columnsPreference.includes(option.value)} onChange={event => { const next = event.target.checked ? [...new Set([...columnsPreference, option.value])] : columnsPreference.filter(value => value !== option.value); setColumnsPreference(next); localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(next)) }}>{option.label}</Checkbox> })) }}><Button>列设置 <DownOutlined /></Button></Dropdown></>} />
     <Card size="small" className="account-controls-card">
       <ReadonlyAlert canWrite={canWrite} className="account-readonly-alert" />
       <div className="account-status-tabs-row"><Radio.Group className="account-status-tabs" optionType="button" buttonStyle="solid" value={filters.status || ''} onChange={event => { setFilters(current => ({ ...current, status: event.target.value })); setPage(1) }} options={[{ value: '', label: '全部' }, ...ACCOUNT_STATUS_OPTIONS]} /></div>
@@ -403,7 +479,7 @@ function AccountsPage({ canWrite, refreshKey }) {
     </Card>
     {selectedRows.length ? <Alert className="batch-alert" type="info" showIcon message={<Space wrap><span>已选择 {selectedRows.length} 个账号</span><Popconfirm getPopupContainer={getBodyPopupContainer} title={`确认将 ${selectedRows.length} 个账号标记为通过？`} onConfirm={() => bulkDecision(1)} okText="确认" cancelText="取消"><Button size="small" type="primary" ghost disabled={!canWrite}>批量通过</Button></Popconfirm><Popconfirm getPopupContainer={getBodyPopupContainer} title={`确认将 ${selectedRows.length} 个账号标记为过滤？`} onConfirm={() => bulkDecision(2)} okText="确认" cancelText="取消"><Button size="small" danger ghost disabled={!canWrite}>批量过滤</Button></Popconfirm><Button size="small" onClick={() => setSelectedRowKeys([])}>取消选择</Button></Space>} /> : null}
     <Card className="table-card account-table-card" styles={{ body: { padding: 0 } }}>
-      {loadState.error ? <ErrorState title="账号列表加载失败" error={loadState.error} onRetry={loadAccounts} /> : <Table rowKey="account_id" sticky size="middle" loading={loadState.loading} columns={columns} dataSource={result.items} rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }} scroll={{ x: 1500, y: 'calc(100vh - 360px)' }} pagination={PaginationConfig({ result, onChange: (nextPage, nextSize) => { setPage(nextPage); setPageSize(nextSize) } })} locale={{ emptyText: <Empty description="暂无符合条件的账号" /> }} onChange={(_, __, sorter) => { const item = Array.isArray(sorter) ? sorter[0] : sorter; if (item?.column?.sortKey) { setFilters(current => ({ ...current, sort: item.column.sortKey, sortDir: item.order === 'ascend' ? 'asc' : 'desc' })); setPage(1) } }} onRow={row => ({ onDoubleClick: () => setDetailId(row.account_id) })} />}
+      {loadState.error ? <ErrorState title="账号列表加载失败" error={loadState.error} onRetry={loadAccounts} /> : <Table rowKey="account_id" sticky size="middle" loading={loadState.loading} columns={columns} dataSource={result.items} rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }} scroll={{ x: 1500, y: 'calc(100vh - 360px)' }} pagination={PaginationConfig({ result, onChange: (nextPage, nextSize) => { setPage(nextPage); setPageSize(nextSize) } })} locale={{ emptyText: <Empty description={emptyDescription} /> }} onChange={(_, __, sorter) => { const item = Array.isArray(sorter) ? sorter[0] : sorter; if (item?.column?.sortKey) { setFilters(current => ({ ...current, sort: item.column.sortKey, sortDir: item.order === 'ascend' ? 'asc' : 'desc' })); setPage(1) } }} onRow={row => ({ onDoubleClick: () => setDetailId(row.account_id) })} />}
     </Card>
     <AccountDetailDrawer open={Boolean(detailId)} accountId={detailId} canWrite={canWrite} onClose={() => setDetailId(null)} onDecision={updateDecision} onChanged={loadAccounts} />
   </div>
@@ -435,6 +511,9 @@ function ArticleFilter({ form, filters, onSubmit, onReset }) {
 
 function ArticleDetailDrawer({ open, articleId, onClose }) {
   const [state, setState] = useState({ loading: false, error: null, item: null })
+  const [hotwordState, setHotwordState] = useState({ loading: false, error: null, items: [] })
+  const [relatedHotwordId, setRelatedHotwordId] = useState(null)
+  const [relatedAccountId, setRelatedAccountId] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
   useEffect(() => {
     if (!open || !articleId) return
@@ -443,28 +522,58 @@ function ArticleDetailDrawer({ open, articleId, onClose }) {
     api.get(`/api/articles/${encodeURIComponent(articleId)}`, { key: `article:${articleId}`, cache: false }).then(result => { if (active) setState({ loading: false, error: null, item: result.item }) }).catch(error => { if (active) setState({ loading: false, error: errorMessage(error), item: null }) })
     return () => { active = false }
   }, [open, articleId, reloadKey])
+  useEffect(() => {
+    const articleKey = state.item?.article_key
+    if (!open || !articleKey) {
+      setHotwordState({ loading: false, error: null, items: [] })
+      return
+    }
+    let active = true
+    setHotwordState({ loading: true, error: null, items: [] })
+    api.get(`/api/articles/by-key/${encodeURIComponent(articleKey)}/hotwords`, { key: `article:${articleKey}:hotwords`, cache: false })
+      .then(result => { if (active) setHotwordState({ loading: false, error: null, items: result.items || [] }) })
+      .catch(error => { if (active) setHotwordState({ loading: false, error: errorMessage(error), items: [] }) })
+    return () => { active = false }
+  }, [open, state.item?.article_key])
   const item = state.item
   return <Drawer width={680} open={open} onClose={onClose} destroyOnHidden title={item?.title || '文章详情'}>
     {state.loading ? <Skeleton active paragraph={{ rows: 10 }} /> : state.error ? <ErrorState title="文章详情加载失败" error={state.error} onRetry={() => setReloadKey(value => value + 1)} /> : item ? <>
       <Descriptions size="small" column={2} colon={false} items={[
         { key: 'title', label: ARTICLE_FIELD_LABELS.title, span: 2, children: item.title || '—' },
-        { key: 'publisher', label: ARTICLE_FIELD_LABELS.publisher, children: item.publisher || '—' },
+        { key: 'publisher', label: ARTICLE_FIELD_LABELS.publisher, children: item.account?.account_id ? <Button type="link" onClick={() => setRelatedAccountId(item.account.account_id)}>{item.publisher || `公众号 #${item.account.account_id}`}</Button> : item.publisher || '—' },
         { key: 'published_at', label: ARTICLE_FIELD_LABELS.published_at, children: formatDateTime(item.published_at) },
         { key: 'read_num', label: ARTICLE_FIELD_LABELS.read_num, children: displayFieldValue('read_num', item.read_num, item) },
         { key: 'like_num', label: ARTICLE_FIELD_LABELS.like_num, children: displayFieldValue('like_num', item.like_num) },
         { key: 'share_num', label: ARTICLE_FIELD_LABELS.share_num, children: displayFieldValue('share_num', item.share_num) },
         { key: 'comment_num', label: ARTICLE_FIELD_LABELS.comment_num, children: displayFieldValue('comment_num', item.comment_num) },
         { key: 'is_original', label: ARTICLE_FIELD_LABELS.is_original, children: item.is_original === null ? <Tag>未知</Tag> : <Tag color={item.is_original ? 'success' : 'default'}>{item.is_original ? '原创' : '非原创'}</Tag> },
-        { key: 'source_code', label: ARTICLE_FIELD_LABELS.source_code, children: item.source_code || '—' }
+        { key: 'source_code', label: ARTICLE_FIELD_LABELS.source_code, children: item.source_code === null || item.source_code === undefined ? '未记录' : item.source_code }
       ]} />
+      <Alert style={{ marginTop: 8 }} type="info" showIcon message="来源运行与筛选依据" description="当前文章业务结果未提供来源 Run ID、过滤命中规则或排除原因；页面不会根据缺失字段推断保留状态。" />
       <Divider orientation="left" plain>文章链接</Divider>
       {safeImage(item.article_url) ? <Button type="link" href={safeImage(item.article_url)} target="_blank" rel="noreferrer" icon={<EyeOutlined />}>打开原文</Button> : <Typography.Text type="secondary">暂无可用链接</Typography.Text>}
+      <Divider orientation="left" plain>关联热词</Divider>
+      {hotwordState.error ? <Alert type="warning" showIcon message="关联热词暂不可用" description={hotwordState.error} /> : <List
+        size="small"
+        loading={hotwordState.loading}
+        dataSource={hotwordState.items}
+        locale={{ emptyText: <Empty description={item.article_key ? '没有关联热词记录' : '该文章缺少关联键，无法查询热词关系'} /> }}
+        renderItem={relation => <List.Item>
+          <List.Item.Meta
+            title={relation.hotword?.hotword || `热词记录 #${relation.hotword_id}`}
+            description={<Space wrap><span>日期 {formatDate(relation.stat_date)}</span>{parseListValue(relation.matched_terms).length ? <span>匹配：{parseListValue(relation.matched_terms).join('、')}</span> : null}{parseListValue(relation.source_platforms).map(platform => <Tag key={platform}>{platform}</Tag>)}</Space>}
+          />
+          {relation.hotword ? <Button type="link" onClick={() => setRelatedHotwordId(relation.hotword_id)}>查看来源</Button> : null}
+        </List.Item>}
+      />}
       <Collapse className="technical-collapse" items={[{ key: 'advanced', label: '高级信息', children: <Descriptions size="small" column={1} colon={false} items={[
         { key: 'id', label: ARTICLE_FIELD_LABELS.id, children: item.id },
         { key: 'account_id', label: ARTICLE_FIELD_LABELS.account_id, children: item.account_id },
         { key: 'article_sn', label: ARTICLE_FIELD_LABELS.article_sn, children: item.article_sn || '—' },
         { key: 'updated_at', label: ARTICLE_FIELD_LABELS.updated_at, children: formatDateTime(item.updated_at) }
       ]} /> }]} />
+      <HotwordSourceDrawer open={Boolean(relatedHotwordId)} hotwordId={relatedHotwordId} onClose={() => setRelatedHotwordId(null)} />
+      <AccountDetailDrawer open={Boolean(relatedAccountId)} accountId={relatedAccountId} canWrite={false} onClose={() => setRelatedAccountId(null)} onDecision={() => {}} onChanged={() => {}} />
     </> : <Empty description="暂无文章详情" />}
   </Drawer>
 }
@@ -475,7 +584,7 @@ function ArticlesPage({ canWrite, refreshKey }) {
   const [filters, setFilters] = useState({})
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-  const [result, setResult] = useState({ items: [], total: 0, page: 1, pageSize: 20 })
+  const [result, setResult] = useState({ items: [], total: null, page: 1, pageSize: 20 })
   const [loadState, setLoadState] = useState({ loading: true, error: null })
   const [selectedRowKeys, setSelectedRowKeys] = useState([])
   const [detailId, setDetailId] = useState(null)
@@ -506,7 +615,7 @@ function ArticlesPage({ canWrite, refreshKey }) {
   }
   const selectedRows = result.items.filter(row => selectedRowKeys.includes(row.id))
   const columns = [
-    { title: '文章标题', dataIndex: 'title', key: 'title', width: 360, fixed: 'left', render: (value, row) => <Tooltip getPopupContainer={getBodyPopupContainer} title={value}><Button type="link" className="table-link table-title-link" onClick={() => setDetailId(row.id)}>{value || '—'}</Button></Tooltip> },
+    { title: '文章标题', dataIndex: 'title', key: 'title', width: 360, fixed: 'left', render: (value, row) => <Tooltip getPopupContainer={getBodyPopupContainer} title={value}>{safeImage(row.article_url) ? <Button type="link" className="table-link table-title-link" href={safeImage(row.article_url)} target="_blank" rel="noreferrer">{value || '—'}</Button> : <Button type="link" className="table-link table-title-link" onClick={() => setDetailId(row.id)}>{value || '—'}</Button>}</Tooltip> },
     { title: '公众号', dataIndex: 'publisher', key: 'publisher', width: 180, render: value => <Space><Avatar size="small" icon={<UserOutlined />} />{value || '—'}</Space> },
     { title: '发布时间', dataIndex: 'published_at', key: 'published_at', width: 150, render: value => formatDateTime(value) },
     { title: '阅读量', dataIndex: 'read_num', key: 'read_num', width: 110, render: (value, row) => displayFieldValue('read_num', value, row) },
@@ -514,16 +623,17 @@ function ArticlesPage({ canWrite, refreshKey }) {
     { title: '分享数', dataIndex: 'share_num', key: 'share_num', width: 100, render: value => displayFieldValue('share_num', value) },
     { title: '留言数', dataIndex: 'comment_num', key: 'comment_num', width: 100, render: value => displayFieldValue('comment_num', value) },
     { title: '原创', dataIndex: 'is_original', key: 'is_original', width: 90, render: value => value === null ? <Tag>未知</Tag> : <Tag color={value ? 'success' : 'default'}>{value ? '原创' : '非原创'}</Tag> },
-    { title: '来源', dataIndex: 'source_code', key: 'source_code', width: 110, render: value => value ? <Tag>{value}</Tag> : <Typography.Text type="secondary">—</Typography.Text> },
+    { title: '原文站点', key: 'source_host', width: 150, render: (_, row) => { try { return new URL(safeImage(row.article_url)).hostname || '未记录' } catch { return <Typography.Text type="secondary">未记录</Typography.Text> } } },
     { title: '操作', key: 'actions', fixed: 'right', width: 150, render: (_, row) => <Space size={4}><Button type="link" size="small" onClick={() => setDetailId(row.id)}>详情</Button><Popconfirm getPopupContainer={getBodyPopupContainer} title="确认删除这篇文章？" description="删除后无法恢复，热词来源索引不会自动清理。" okText="确认删除" cancelText="取消" okButtonProps={{ danger: true }} onConfirm={() => deleteRows([row])}><Button danger type="link" size="small" disabled={!canWrite}>删除</Button></Popconfirm></Space> }
   ]
+  const emptyDescription = hasActiveFilters(filters) ? '没有找到匹配的文章' : '暂无文章数据'
   return <div className="management-page">
-    <PageHeader title="文章管理" description={`服务端分页加载文章，共 ${result.total || 0} 篇；长标题会截断并可悬停查看。`} actions={<Button icon={<ReloadOutlined />} onClick={loadArticles}>刷新</Button>} />
+    <PageHeader title="文章管理" description={`${resultCountDescription(loadState, result, '篇文章')} · 服务端分页 · 长标题可悬停查看完整内容`} actions={<Button icon={<ReloadOutlined />} onClick={loadArticles}>刷新</Button>} />
     <ReadonlyAlert canWrite={canWrite} />
     <ArticleFilter form={form} filters={filters} onSubmit={values => { setFilters(values); setPage(1) }} onReset={() => { setFilters({}); setPage(1) }} />
     {selectedRows.length ? <Alert className="batch-alert" type="info" showIcon message={<Space wrap><span>已选择 {selectedRows.length} 篇文章</span><Popconfirm getPopupContainer={getBodyPopupContainer} title={`确认删除 ${selectedRows.length} 篇文章？`} description="删除后无法恢复，热词来源索引不会自动清理。" okText="确认删除" cancelText="取消" okButtonProps={{ danger: true }} onConfirm={() => deleteRows(selectedRows)}><Button size="small" danger disabled={!canWrite}>批量删除</Button></Popconfirm><Button size="small" onClick={() => setSelectedRowKeys([])}>取消选择</Button></Space>} /> : null}
     <Card className="table-card" styles={{ body: { padding: 0 } }}>
-      {loadState.error ? <ErrorState title="文章列表加载失败" error={loadState.error} onRetry={loadArticles} /> : <Table rowKey="id" sticky size="middle" loading={loadState.loading} columns={columns} dataSource={result.items} rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }} scroll={{ x: 1400, y: 'calc(100vh - 450px)' }} pagination={PaginationConfig({ result, onChange: (nextPage, nextSize) => { setPage(nextPage); setPageSize(nextSize) } })} locale={{ emptyText: <Empty description="暂无符合条件的文章" /> }} />}
+      {loadState.error ? <ErrorState title="文章列表加载失败" error={loadState.error} onRetry={loadArticles} /> : <Table rowKey="id" sticky size="middle" loading={loadState.loading} columns={columns} dataSource={result.items} rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }} scroll={{ x: 1400, y: 'calc(100vh - 450px)' }} pagination={PaginationConfig({ result, onChange: (nextPage, nextSize) => { setPage(nextPage); setPageSize(nextSize) } })} locale={{ emptyText: <Empty description={emptyDescription} /> }} />}
     </Card>
     <ArticleDetailDrawer open={Boolean(detailId)} articleId={detailId} onClose={() => setDetailId(null)} />
   </div>
@@ -749,9 +859,29 @@ function HotwordEditorDrawer({ open, hotwordId, canWrite, onClose, onSaved }) {
   </Drawer>
 }
 
-function HotwordSourceDrawer({ open, hotwordId, onClose }) {
+function HotwordSourceDrawer({ open, hotwordId, onArticleClick, onClose }) {
   const [state, setState] = useState({ loading: false, item: null, error: null })
+  const [articles, setArticles] = useState({ loading: false, error: null, items: [], total: null })
+  const [history, setHistory] = useState({ loading: false, error: null, items: [], total: null })
+  const [pagination, setPagination] = useState({ hotwordId: null, page: 1 })
+  const [historyPage, setHistoryPage] = useState(1)
+  const identity = open && hotwordId ? String(hotwordId) : null
+  const page = pagination.hotwordId === identity ? pagination.page : 1
+  const setPage = next => setPagination(current => {
+    const currentPage = current.hotwordId === identity ? current.page : 1
+    return { hotwordId: identity, page: typeof next === 'function' ? next(currentPage) : next }
+  })
+  const pageSize = 10
   const [reloadKey, setReloadKey] = useState(0)
+  useEffect(() => {
+    if (!open) setPagination({ hotwordId: null, page: 1 })
+  }, [open])
+  useEffect(() => {
+    setHistoryPage(1)
+  }, [open, hotwordId])
+  useEffect(() => {
+    setArticles({ loading: Boolean(open && hotwordId), error: null, items: [], total: null })
+  }, [open, hotwordId])
   useEffect(() => {
     if (!open || !hotwordId) return
     let active = true
@@ -759,12 +889,90 @@ function HotwordSourceDrawer({ open, hotwordId, onClose }) {
     api.get(`/api/hotwords/${encodeURIComponent(hotwordId)}`, { key: `hotword:${hotwordId}`, cache: false }).then(result => { if (active) setState({ loading: false, item: result.item, error: null }) }).catch(error => { if (active) setState({ loading: false, item: null, error: errorMessage(error) }) })
     return () => { active = false }
   }, [open, hotwordId, reloadKey])
+  useEffect(() => {
+    if (!open || !hotwordId) return
+    let active = true
+    setArticles(current => ({ ...current, loading: true, error: null }))
+    const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+    api.get(`/api/hotwords/${encodeURIComponent(hotwordId)}/articles?${query}`, { key: `hotword:${hotwordId}:articles:${page}`, cache: false })
+      .then(result => { if (active) setArticles({ loading: false, error: null, items: result.items || [], total: result.total ?? null }) })
+      .catch(error => { if (active) setArticles(current => ({ ...current, loading: false, error: errorMessage(error) })) })
+    return () => { active = false }
+  }, [open, hotwordId, page, reloadKey])
+  useEffect(() => {
+    if (!open || !hotwordId) return
+    let active = true
+    setHistory({ loading: true, error: null, items: [], total: null })
+    const query = new URLSearchParams({ page: String(historyPage), pageSize: '8' })
+    api.get(`/api/hotwords/${encodeURIComponent(hotwordId)}/history?${query}`, { key: `hotword:${hotwordId}:history:${historyPage}`, cache: false })
+      .then(result => { if (active) setHistory({ loading: false, error: null, items: result.items || [], total: result.total ?? null }) })
+      .catch(error => { if (active) setHistory(current => ({ ...current, loading: false, error: errorMessage(error) })) })
+    return () => { active = false }
+  }, [open, hotwordId, historyPage, reloadKey])
   const item = state.item
-  return <Drawer width={560} open={open} onClose={onClose} destroyOnHidden title={item ? `${item.hotword} · 来源文章` : '来源文章'}>
-    {state.loading ? <Skeleton active paragraph={{ rows: 6 }} /> : state.error ? <ErrorState title="来源信息加载失败" error={state.error} onRetry={() => setReloadKey(value => value + 1)} /> : item ? <>
-      <Alert type="info" showIcon message={`共 ${formatMetric(item.article_count)} 篇文章`} description="当前 API 仅返回热词的代表链接和服务端维护的来源索引；页面不直接暴露 article_keys 原始值。" />
-      <List className="source-article-list" dataSource={[{ title: `代表文章（${item.stat_date || '未标注日期'}）`, publisher: '热词来源', date: item.stat_date, url: item.article_url }]} locale={{ emptyText: <Empty description="暂无来源文章" /> }} renderItem={row => <List.Item actions={safeImage(row.url) ? [<Button key="open" type="link" href={safeImage(row.url)} target="_blank" rel="noreferrer">打开</Button>] : []}><List.Item.Meta avatar={<Avatar icon={<FileTextOutlined />} />} title={row.title} description={`${row.publisher} · ${row.date || '—'}`} /></List.Item>} />
-    </> : <Empty description="暂无来源文章" />}
+  return <Drawer width={600} open={open} onClose={onClose} destroyOnHidden title={item ? `${item.hotword} · 来源与历史` : '来源与历史'}>
+    {state.loading ? <Skeleton active paragraph={{ rows: 6 }} /> : state.error ? <ErrorState title="热词详情加载失败" error={state.error} onRetry={() => setReloadKey(value => value + 1)} /> : item ? <>
+      <Card size="small" title={`历史快照 · ${Number.isFinite(history.total) ? `${history.total} 条` : '数量未知'}`} style={{ marginBottom: 12 }}>
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>按完整热词名称列出数据库中的日期记录。趋势分保留各记录原值，不跨来源合并或比较；当前数据没有排名字段，因此不显示排名变化。</Typography.Paragraph>
+        {history.error ? <Alert type="warning" showIcon message="历史快照暂不可用" description={history.error} action={<Button size="small" onClick={() => setReloadKey(value => value + 1)}>重试</Button>} /> : <Table
+          size="small"
+          rowKey="id"
+          loading={history.loading}
+          dataSource={history.items}
+          pagination={false}
+          columns={[
+            { title: '日期', dataIndex: 'stat_date', width: 96, render: value => value || '—' },
+            { title: '来源', dataIndex: 'source_platforms', width: 96, render: value => { const names = { wxrank: 'WxRank', redfox: 'RedFox', tophub: 'TopHub' }; return parseListValue(value).map(platform => names[String(platform).toLowerCase()] || platform).join('、') || '未记录' } },
+            { title: '文章数', dataIndex: 'article_count', width: 72, render: formatMetric },
+            { title: '趋势分', dataIndex: 'trend_score', width: 72, render: formatMetric },
+            { title: '趋势', dataIndex: 'trend_state', width: 72, render: value => value ? ({ rising: '上升', falling: '下降', declining: '下降', stable: '平稳' })[value] || value : '未记录' }
+          ]}
+          locale={{ emptyText: <Empty description={history.loading ? '正在读取历史记录' : '没有可用的历史快照'} /> }}
+        />}
+        {!history.error && (Number.isFinite(history.total) ? history.total > 8 : history.items.length >= 8) ? <Space style={{ width: '100%', justifyContent: 'space-between', marginTop: 8 }}>
+          <Typography.Text type="secondary">第 {historyPage} 页 · 每页 8 条</Typography.Text>
+          <Space size={4}><Button size="small" disabled={historyPage <= 1 || history.loading} onClick={() => setHistoryPage(value => Math.max(1, value - 1))}>上一页</Button><Button size="small" disabled={history.loading || (Number.isFinite(history.total) ? historyPage * 8 >= history.total : history.items.length < 8)} onClick={() => setHistoryPage(value => value + 1)}>下一页</Button></Space>
+        </Space> : null}
+      </Card>
+      <Alert
+        type={articles.error ? 'warning' : 'info'}
+        showIcon
+        message={`热词记录数：${formatMetric(item.article_count)} · 可查询关联记录：${Number.isFinite(articles.total) ? articles.total : '未知'}`}
+        description={Number.isFinite(articles.total) && item.article_count !== null && item.article_count !== undefined && Number(item.article_count) !== articles.total
+          ? '热词统计字段与文章关联记录数不同；下方列表按已保存的关联关系展示。'
+          : '来源平台和匹配词取自文章关联记录；不同平台热度不合并为统一分数。'}
+      />
+      {articles.error ? <Alert style={{ marginTop: 12 }} type="warning" showIcon message="关联文章加载失败" description={articles.error} action={<Button size="small" onClick={() => setReloadKey(value => value + 1)}>重试</Button>} /> : null}
+      <List
+        className="source-article-list"
+        loading={articles.loading}
+        dataSource={articles.items}
+        locale={{ emptyText: <Empty description={articles.error ? '关联数据暂不可用' : '没有已保存的关联文章记录'} /> }}
+        renderItem={relation => {
+          const article = relation.article
+          const articleUrl = safeImage(article?.article_url)
+          const description = [article?.accounts?.wx_name || '账号未记录', formatDateTime(article?.published_at), parseListValue(relation.source_platforms).join('、'), parseListValue(relation.matched_terms).length ? `匹配：${parseListValue(relation.matched_terms).join('、')}` : ''].filter(Boolean).join(' · ')
+          const actions = []
+          if (articleUrl) actions.push(<Button key="open" type="link" href={articleUrl} target="_blank" rel="noreferrer">打开原文</Button>)
+          if (article?.id && onArticleClick) actions.push(<Button key="detail" type="link" onClick={() => onArticleClick(article.id)}>文章详情</Button>)
+          return <List.Item actions={actions}>
+            <List.Item.Meta
+              avatar={<Avatar icon={<FileTextOutlined />} />}
+              title={article?.title || '关联记录中的文章不可用'}
+              description={article ? description : `${relation.article_key || relation.article_id || '无文章标识'} · ${description}`}
+            />
+          </List.Item>
+        }}
+      />
+      <Space style={{ width: '100%', justifyContent: 'space-between', marginTop: 8 }}>
+        <Typography.Text type="secondary">{Number.isFinite(articles.total) ? `共 ${articles.total} 条关联 · ` : '关联总数未知 · '}第 {page} 页</Typography.Text>
+        <Space size={4}>
+          <Button size="small" disabled={page <= 1 || articles.loading} onClick={() => setPage(value => Math.max(1, value - 1))}>上一页</Button>
+          <Button size="small" disabled={articles.loading || (Number.isFinite(articles.total) ? page * pageSize >= articles.total : articles.items.length < pageSize)} onClick={() => setPage(value => value + 1)}>下一页</Button>
+        </Space>
+      </Space>
+      {safeImage(item.article_url) ? <Typography.Paragraph style={{ marginTop: 12 }}><Button type="link" href={safeImage(item.article_url)} target="_blank" rel="noreferrer">打开热词代表文章</Button><Typography.Text type="secondary">代表文章链接与关联文章列表分别来自热词记录和关联表。</Typography.Text></Typography.Paragraph> : null}
+    </> : <Empty description="暂无热词详情" />}
   </Drawer>
 }
 
@@ -774,11 +982,12 @@ function HotwordsPage({ canWrite, refreshKey }) {
   const [filters, setFilters] = useState({})
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-  const [result, setResult] = useState({ items: [], total: 0, page: 1, pageSize: 20 })
+  const [result, setResult] = useState({ items: [], total: null, page: 1, pageSize: 20 })
   const [loadState, setLoadState] = useState({ loading: true, error: null })
   const [selectedRowKeys, setSelectedRowKeys] = useState([])
   const [editorId, setEditorId] = useState(null)
   const [sourceId, setSourceId] = useState(null)
+  const [articleDetailId, setArticleDetailId] = useState(null)
   const [mergeState, setMergeState] = useState({ open: false, loading: false, preview: null, targetId: null })
   const query = useMemo(() => cleanParams({ ...filters, page, pageSize }), [filters, page, pageSize])
   const loadHotwords = async () => {
@@ -829,23 +1038,28 @@ function HotwordsPage({ canWrite, refreshKey }) {
     }
   }
   const columns = [
-    { title: '标准热词', dataIndex: 'hotword', key: 'hotword', width: 180, render: value => <Typography.Text strong>{value || '—'}</Typography.Text> },
+    { title: '标准热词', dataIndex: 'hotword', key: 'hotword', width: 180, sorter: true, sortKey: 'hotword', sortOrder: filters.sort === 'hotword' ? (filters.sortDir === 'asc' ? 'ascend' : 'descend') : null, render: value => <Typography.Text strong>{value || '—'}</Typography.Text> },
     { title: '别名', dataIndex: 'aliases', key: 'aliases', width: 280, render: value => { const aliases = parseListValue(value); return <Space wrap>{aliases.slice(0, 4).map(alias => <Tag key={alias}>{alias}</Tag>)}{aliases.length > 4 ? <Tooltip getPopupContainer={getBodyPopupContainer} title={aliases.slice(4).join('、')}><Tag>+{aliases.length - 4}</Tag></Tooltip> : null}</Space> } },
-    { title: '统计日期', dataIndex: 'stat_date', key: 'stat_date', width: 130, render: value => formatDate(value) },
-    { title: '文章数量', dataIndex: 'article_count', key: 'article_count', width: 120, render: (value, row) => <Button type="link" onClick={() => setSourceId(row.id)}>{formatMetric(value)}</Button> },
+    { title: '来源平台', dataIndex: 'source_platforms', key: 'source_platforms', width: 160, render: value => { const names = { wxrank: 'WxRank', redfox: 'RedFox', tophub: 'TopHub' }; const platforms = parseListValue(value); return platforms.length ? <Space wrap>{platforms.map(platform => <Tag key={platform}>{names[String(platform).toLowerCase()] || platform}</Tag>)}</Space> : <Typography.Text type="secondary">未记录</Typography.Text> } },
+    { title: '趋势', dataIndex: 'trend_state', key: 'trend_state', width: 100, render: value => value ? <Tag color={value === 'rising' ? 'red' : ['falling', 'declining'].includes(value) ? 'blue' : 'default'}>{({ rising: '上升', falling: '下降', declining: '下降', stable: '平稳' })[value] || value}</Tag> : <Typography.Text type="secondary">未记录</Typography.Text> },
+    { title: '统计日期', dataIndex: 'stat_date', key: 'stat_date', width: 130, sorter: true, sortKey: 'stat_date', sortOrder: filters.sort === 'stat_date' || !filters.sort ? (filters.sortDir === 'asc' ? 'ascend' : 'descend') : null, render: value => formatDate(value) },
+    { title: '关联文章数', dataIndex: 'article_count', key: 'article_count', width: 130, sorter: true, sortKey: 'article_count', sortOrder: filters.sort === 'article_count' ? (filters.sortDir === 'asc' ? 'ascend' : 'descend') : null, render: (value, row) => value === null || value === undefined ? <Typography.Text type="secondary">未记录</Typography.Text> : <Button type="link" onClick={() => setSourceId(row.id)}>{formatMetric(value)}</Button> },
+    { title: '更新时间', dataIndex: 'updated_at', key: 'updated_at', width: 160, sorter: true, sortKey: 'updated_at', sortOrder: filters.sort === 'updated_at' ? (filters.sortDir === 'asc' ? 'ascend' : 'descend') : null, render: value => formatDateTime(value) },
     { title: '代表文章', dataIndex: 'article_url', key: 'article_url', width: 130, render: value => safeImage(value) ? <Button type="link" href={safeImage(value)} target="_blank" rel="noreferrer">打开原文</Button> : <Typography.Text type="secondary">—</Typography.Text> },
     { title: '操作', key: 'actions', fixed: 'right', width: 170, render: (_, row) => <Space><Button type="link" size="small" icon={<EditOutlined />} disabled={!canWrite} onClick={() => setEditorId(row.id)}>编辑</Button><Popconfirm getPopupContainer={getBodyPopupContainer} title="确认删除该热词？" description="删除后无法恢复，来源文章不会被自动删除。" okText="确认删除" cancelText="取消" okButtonProps={{ danger: true }} onConfirm={() => deleteHotword(row)}><Button type="link" danger size="small" disabled={!canWrite}>删除</Button></Popconfirm></Space> }
   ]
+  const emptyDescription = hasActiveFilters(filters, ['sort', 'sortDir']) ? '没有找到匹配的热词' : '暂无热词数据'
   return <div className="management-page">
-    <PageHeader title="热词管理" description="维护标准热词、别名和来源统计；合并流程会先预览目标词与别名，再执行服务端 CAS 操作。" actions={<><Button icon={<ReloadOutlined />} onClick={loadHotwords}>刷新</Button><Button type="primary" icon={<CheckOutlined />} disabled={!canWrite || selectedRows.length < 2} onClick={prepareMerge}>合并选中项{selectedRows.length >= 2 ? `（${selectedRows.length}）` : ''}</Button></>} />
+    <PageHeader title="热词管理" description={`${resultCountDescription(loadState, result, '个热词')} · 按平台分别展示来源，不合并不同平台热度`} actions={<><Button icon={<ReloadOutlined />} onClick={loadHotwords}>刷新</Button><Button type="primary" icon={<CheckOutlined />} disabled={!canWrite || selectedRows.length < 2} onClick={prepareMerge}>合并选中项{selectedRows.length >= 2 ? `（${selectedRows.length}）` : ''}</Button></>} />
     <ReadonlyAlert canWrite={canWrite} />
-    <Card size="small" className="filter-card"><Form form={form} layout="inline" initialValues={filters} onFinish={values => { setFilters(cleanParams({ ...values, statDate: serializeDateValue(values.statDate) })); setPage(1) }}><Form.Item label="标准热词" name="keyword"><Input allowClear prefix={<SearchOutlined />} /></Form.Item><Form.Item label="统计日期" name="statDate"><DatePicker getPopupContainer={getBodyPopupContainer} /></Form.Item><Form.Item><Button type="primary" htmlType="submit">查询</Button></Form.Item><Form.Item><Button onClick={() => { form.resetFields(); setFilters({}); setPage(1) }}>重置</Button></Form.Item></Form></Card>
+    <Card size="small" className="filter-card"><Form form={form} layout="inline" initialValues={filters} onFinish={values => { setFilters(cleanParams({ ...values, statDate: serializeDateValue(values.statDate), sort: filters.sort || 'stat_date', sortDir: filters.sortDir || 'desc' })); setPage(1) }}><Form.Item label="标准热词" name="keyword"><Input allowClear prefix={<SearchOutlined />} /></Form.Item><Form.Item label="统计日期" name="statDate"><DatePicker getPopupContainer={getBodyPopupContainer} /></Form.Item><Form.Item><Button type="primary" htmlType="submit">查询</Button></Form.Item><Form.Item><Button onClick={() => { form.resetFields(); setFilters({ sort: 'stat_date', sortDir: 'desc' }); setPage(1) }}>重置</Button></Form.Item></Form></Card>
     {selectedRows.length ? <Alert className="batch-alert" type="info" showIcon message={`已选择 ${selectedRows.length} 个热词，选择至少 2 个后可合并。`} /> : null}
     <Card className="table-card" styles={{ body: { padding: 0 } }}>
-      {loadState.error ? <ErrorState title="热词列表加载失败" error={loadState.error} onRetry={loadHotwords} /> : <Table rowKey="id" sticky size="middle" loading={loadState.loading} columns={columns} dataSource={result.items} rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }} scroll={{ x: 1050, y: 'calc(100vh - 390px)' }} pagination={PaginationConfig({ result, onChange: (nextPage, nextSize) => { setPage(nextPage); setPageSize(nextSize) } })} locale={{ emptyText: <Empty description="暂无符合条件的热词" /> }} />}
+      {loadState.error ? <ErrorState title="热词列表加载失败" error={loadState.error} onRetry={loadHotwords} /> : <Table rowKey="id" sticky size="middle" loading={loadState.loading} columns={columns} dataSource={result.items} rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }} scroll={{ x: 1260, y: 'calc(100vh - 390px)' }} pagination={PaginationConfig({ result, onChange: (nextPage, nextSize) => { setPage(nextPage); setPageSize(nextSize) } })} locale={{ emptyText: <Empty description={emptyDescription} /> }} onChange={(_, __, sorter) => { const item = Array.isArray(sorter) ? sorter[0] : sorter; const sort = item?.column?.sortKey || 'stat_date'; setFilters(current => ({ ...current, sort, sortDir: item?.order === 'ascend' ? 'asc' : 'desc' })); setPage(1) }} />}
     </Card>
     <HotwordEditorDrawer open={Boolean(editorId)} hotwordId={editorId} canWrite={canWrite} onClose={() => setEditorId(null)} onSaved={async () => { setEditorId(null); await loadHotwords() }} />
-    <HotwordSourceDrawer open={Boolean(sourceId)} hotwordId={sourceId} onClose={() => setSourceId(null)} />
+    <HotwordSourceDrawer open={Boolean(sourceId)} hotwordId={sourceId} onArticleClick={setArticleDetailId} onClose={() => setSourceId(null)} />
+    <ArticleDetailDrawer open={Boolean(articleDetailId)} articleId={articleDetailId} onClose={() => setArticleDetailId(null)} />
     <Modal title="确认合并热词" open={mergeState.open} confirmLoading={mergeState.loading} okText="确认合并" cancelText="取消" onCancel={() => setMergeState({ open: false, loading: false, preview: null, targetId: null })} onOk={confirmMerge} okButtonProps={{ danger: true }}>
       {mergeState.loading && !mergeState.preview ? <Spin /> : mergeState.preview ? <Space direction="vertical" style={{ width: '100%' }}>
         <Typography.Paragraph>请选择合并后的标准词，其他选中项将转为别名并删除来源热词记录。</Typography.Paragraph>
@@ -904,7 +1118,7 @@ function ManagementApp() {
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
-  const page = view === 'accounts' ? <AccountsPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'articles' ? <ArticlesPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'rules' ? <RulesPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'hotwords' ? <HotwordsPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'strategies' ? <StrategyPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'collection' ? <CollectionPage canWrite={canWrite} refreshKey={refreshKey} /> : <AccountsPage canWrite={canWrite} refreshKey={refreshKey} />
+  const page = view === 'accounts' ? <AccountsPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'articles' ? <ArticlesPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'rules' ? <RulesPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'hotwords' ? <HotwordsPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'strategies' ? <StrategyPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'collection' ? <CollectionPage canWrite={canWrite} refreshKey={refreshKey} /> : view === 'configuration' ? <ConfigurationPage api={api} canWrite={canWrite} refreshKey={refreshKey} /> : <AccountsPage canWrite={canWrite} refreshKey={refreshKey} />
   return <Layout className="management-layout">
     <Sider width={224} theme="dark" className="management-sider">
       <div className="management-brand"><span className="management-brand-mark">W</span><span>配置管理中心</span></div>

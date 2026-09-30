@@ -1,4 +1,7 @@
-const REDFOX_BASE = 'https://redfox.hk'
+import { loadCollectorEnvironment } from '../collector-config.mjs'
+
+const REDFOX_BASE = loadCollectorEnvironment().REDFOX_API_URL || 'https://redfox.hk'
+export const REDFOX_SEARCH_ENDPOINT = REDFOX_BASE + '/story/api/gzhData/searchArticle'
 
 const rankBodyForRange = (startDate, endDate) => ({ type: '总排名', startDate, endDate })
 
@@ -65,10 +68,10 @@ export function normalizeRedfoxRowsDetailed(rows = []) {
   rows.forEach((row, index) => {
     try {
     if (!row || typeof row !== 'object' || Array.isArray(row)) throw new TypeError('RedFox row must be an object')
-    const articleUrl = text(first(row, ['oriUrl', 'ori_url', 'article_url', 'url', 'link']))
+    const articleUrl = text(first(row, ['oriUrl', 'ori_url', 'article_url', 'workUrl', 'work_url', 'url', 'link']))
     const url = urlFields(articleUrl)
     const articleSn = text(first(row, ['article_sn', 'articleSn', 'sn'])) || url.sn
-    const readRaw = first(row, ['read_num', 'readNum', 'read', 'clicksCount', 'click_count'])
+    const readRaw = first(row, ['read_num', 'readNum', 'read', 'readCount', 'clicksCount', 'click_count'])
     const readNum = numberOrNull(readRaw)
     const originalRaw = first(row, ['is_original', 'isOriginal', 'original'])
     const original = originalRaw === undefined || originalRaw === null || originalRaw === '' ? null : !['false', '0', '否', 'no'].includes(String(originalRaw).toLowerCase())
@@ -137,7 +140,7 @@ function validateDate(value, name) {
   return date
 }
 
-export async function fetchRedfoxSources({ apiKey = process.env.REDFOX_API_KEY, targetDate, startDate, endDate, lookbackDays = 2, sourceNos = ['ZIGAGYYT', 'OFFSPQ0U'], fetchImpl = globalThis.fetch } = {}) {
+export async function fetchRedfoxSources({ apiKey = loadCollectorEnvironment().REDFOX_API_KEY, targetDate, startDate, endDate, lookbackDays = 2, sourceNos = ['ZIGAGYYT', 'OFFSPQ0U'], fetchImpl = globalThis.fetch } = {}) {
   if (!apiKey) return { status: 'waiting_auth', error_code: 'AUTH_REQUIRED', message: 'REDFOX_API_KEY is required', request_count: 0, sources: [], rows: [] }
   const hasExplicitRange = startDate !== undefined || endDate !== undefined
   let requestedDate = null
@@ -164,7 +167,8 @@ export async function fetchRedfoxSources({ apiKey = process.env.REDFOX_API_KEY, 
   const rows = []
   const errors = []
   let requestCount = 0
-  const selectedSources = REDFOX_GZH_SOURCES.filter(source => sourceNos.includes(source.no))
+  const currentBase = (loadCollectorEnvironment().REDFOX_API_URL || REDFOX_BASE).replace(/\/+$/u, '')
+  const selectedSources = REDFOX_GZH_SOURCES.filter(source => sourceNos.includes(source.no)).map(source => ({ ...source, endpoint: source.endpoint.startsWith(REDFOX_BASE) ? currentBase + source.endpoint.slice(REDFOX_BASE.length) : source.endpoint }))
   for (const source of selectedSources) {
     let selected = null
     for (const range of dateRanges) {
@@ -200,4 +204,29 @@ export async function fetchRedfoxSources({ apiKey = process.env.REDFOX_API_KEY, 
   }
   const failed = sources.filter(item => item.status !== 'success')
   return { status: failed.length ? (failed.length === sources.length ? 'failed' : 'partial') : 'success', request_count: requestCount, requested_range: { start_date: requestedStartDate, end_date: requestedEndDate }, requested_date: requestedDate, sources, raw_sources: rawSources, rows, errors, message: failed.length ? String(failed.length) + ' RedFox source(s) failed' : 'ok' }
+}
+
+export async function fetchRedfoxKeywordArticles({ apiKey = loadCollectorEnvironment().REDFOX_API_KEY, endpoint = `${(loadCollectorEnvironment().REDFOX_API_URL || REDFOX_BASE).replace(/\/+$/u, '')}/story/api/gzhData/searchArticle`, keyword, offset = 0, sortType = '_4', exactMatch = true, fetchImpl = globalThis.fetch } = {}) {
+  if (!apiKey) return { status: 'waiting_auth', error_code: 'AUTH_REQUIRED', message: 'REDFOX_API_KEY is required', request_count: 0, rows: [] }
+  const normalizedKeyword = text(keyword)
+  if (!normalizedKeyword) return { status: 'failed', error_code: 'INVALID_ARGUMENT', message: 'RedFox 搜索关键词不能为空', request_count: 0, rows: [] }
+  if (!Number.isSafeInteger(Number(offset)) || Number(offset) < 0) return { status: 'failed', error_code: 'INVALID_ARGUMENT', message: 'RedFox 搜索 offset 必须是非负整数', request_count: 0, rows: [] }
+  try {
+    const response = await fetchImpl(endpoint, {
+      method: 'POST',
+      headers: { REDFOX_API_KEY: apiKey, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ keyword: normalizedKeyword, offset: Number(offset), sortType, exactMatch: exactMatch === true })
+    })
+    let body
+    try { body = await response.json() } catch { return { status: 'failed', error_code: 'INVALID_DATA', message: 'RedFox 搜索响应不是 JSON', request_count: 1, rows: [], raw: null } }
+    if (!response.ok || Number(body?.code) !== 2000) {
+      return { status: 'failed', error_code: !response.ok ? 'HTTP_ERROR' : 'BUSINESS_ERROR', message: text(body?.msg || body?.message || `HTTP ${response.status} / code=${body?.code ?? 'missing'}`), request_count: 1, rows: [], raw: body }
+    }
+    const list = Array.isArray(body?.data?.list) ? body.data.list : []
+    const detail = normalizeRedfoxRowsDetailed(list.map(row => ({ ...row, source_no: 'SEARCH', read_num: row.read_num ?? row.readCount, look_num: row.look_num ?? row.watchCount, userName: row.userName ?? row.author, oriUrl: row.oriUrl ?? row.workUrl ?? row.sourceUrl })))
+    const rows = detail.rows.map(({ raw, ...row }) => ({ ...row, wx_name: text(first(raw, ['wx_name', 'wxName', 'userName', 'user_name', 'author', 'publisher'])) || row.publisher || null, source_platform: 'redfox' }))
+    return { status: 'success', error_code: null, message: 'ok', request_count: 1, rows, errors: detail.errors, total: Number(body?.data?.total) || null, has_more: body?.data?.hasMore === true, raw: body }
+  } catch (error) {
+    return { status: 'failed', error_code: 'HTTP_ERROR', message: text(error?.message || 'RedFox 搜索请求失败'), request_count: 1, rows: [], raw: null }
+  }
 }

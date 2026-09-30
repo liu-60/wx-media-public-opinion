@@ -79,6 +79,7 @@ export function mergeCanonicalArticles(inputRows = []) {
         merged.source_refs = [...existing.source_refs]
         for (const ref of row.source_refs) if (!merged.source_refs.some(item => item.platform === ref.platform && item.reason === ref.reason)) merged.source_refs.push(ref)
         merged.collect_reasons = [...new Set(merged.source_refs.map(ref => ref.reason))]
+        merged.source_steps = [...new Set([...(existing.source_steps || []), ...(row.source_steps || [])].map(text).filter(Boolean))]
         byKey.set(row.article_key, merged)
         duplicateRows.push({ article_key: row.article_key, kept: existing, duplicate: row })
       }

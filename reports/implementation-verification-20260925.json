@@ -1,0 +1,124 @@
+{
+  "generated_at": "2026-09-25",
+  "project": "微信自媒体舆情",
+  "implementation": {
+    "workflow_revision": 9,
+    "registered_script_hashes": {
+      "checked": 14,
+      "mismatches": 0
+    },
+    "migrations": [
+      "supabase/migrations/20260925131609_wxrank_date_strategy_singleton.sql",
+      "supabase/migrations/20260925132620_hotword_trend_quality_fields.sql"
+    ],
+    "database_uniqueness": {
+      "hotword_date_duplicates": 0,
+      "hotword_article_relation_duplicates": 0,
+      "maximum_hotwords_per_day": 10
+    }
+  },
+  "live_validation": {
+    "wxrank_date_strategy": {
+      "yesterday": {
+        "date": "2026-09-24",
+        "pages": 2,
+        "requests": 2,
+        "articles_returned": 100
+      },
+      "day_before": {
+        "date": "2026-09-23",
+        "pages": 2,
+        "requests": 2,
+        "articles_returned": 100
+      },
+      "total_requests": 4,
+      "retries_reused_page_cache": true,
+      "strategy_completed_items": 4,
+      "active_targets": ["2026-09-24", "2026-09-23"]
+    },
+    "historical_hotwords": {
+      "source_articles": 9941,
+      "covered_days": 283,
+      "persisted_hotwords": 2830,
+      "max_hotwords_per_day": 10,
+      "duplicate_hotword_date_rows": 0,
+      "duplicate_article_links": 0,
+      "idempotent_repeat": true,
+      "preserved_article_rows": true,
+      "canonical_prefix_example": {
+        "input": "闲鱼暗号",
+        "canonical": "闲鱼"
+      }
+    },
+    "hotword_supplement": {
+      "trend_states": {
+        "new": 1559,
+        "rising": 370,
+        "stable": 18
+      },
+      "latest_hotword_date": "2026-09-21",
+      "current_candidate_count": 0,
+      "search_api_requests": 0,
+      "llm_requests": 0,
+      "reason": "2026-09-25 的历史数据超出 max_trend_age_days=3，且 LLM 配置 disabled；本轮未消耗搜索 API 或 LLM 配额。"
+    },
+    "config_center": {
+      "api_configs": ["WxRank", "Redfox"],
+      "secret_display": "masked",
+      "priority": ["本地保存配置", "进程环境", ".env", "默认值"],
+      "next_request_reads_saved_config": true,
+      "llm_configuration_supported": true,
+      "llm_enabled": false
+    },
+    "workflow_result": {
+      "run_id": "cbdf5db5-5e38-405e-b88f-f86c72ee81a2",
+      "status": "success",
+      "parent_run_id": "9c53ac70-4ab6-4a29-87bb-eec0b2626303",
+      "output_artifacts": [
+        {
+          "name": "accounts.json",
+          "created": 15,
+          "updated": 69,
+          "deleted": 0,
+          "total": 84
+        },
+        {
+          "name": "articles.json",
+          "created": 0,
+          "updated": 0,
+          "deleted": 0,
+          "total": 0
+        },
+        {
+          "name": "hotwords.json",
+          "created": 0,
+          "updated": 0,
+          "deleted": 0,
+          "total": 0
+        }
+      ],
+      "publish_mode": "preview",
+      "production_commit": false
+    },
+    "workflow_api_budget": {
+      "wxrank": "10/10 used",
+      "redfox": "15/15 used"
+    }
+  },
+  "verification": {
+    "unit_and_regression_tests": {
+      "command": "pnpm.cmd test",
+      "passed": 276,
+      "failed": 0
+    },
+    "management_center_build": "passed",
+    "management_center_health": "ready",
+    "ui_api_config_readback": "passed; API secrets were returned masked"
+  },
+  "limitations": [
+    "当日调试 API 预算已耗尽，最后使用成功的真实源步骤 Artifact 续跑尾链并验证工作流结果步骤，未能在最后状态从第一步重新启动一条全新完整工作流。",
+    "LLM 当前配置为 disabled，因此验证了本地规则和调用链，但没有真实 LLM 请求。",
+    "工作流保持 preview 模式；accounts.json 中 84 条变化没有提交到生产账号表。",
+    "清理临时验收目录和测试日志的批量 Remove-Item 命令被执行工具策略拒绝；这些临时文件保留在 reports/ 和 data/collection-test-artifacts/，业务数据及恢复备份均未删除。"
+  ]
+}

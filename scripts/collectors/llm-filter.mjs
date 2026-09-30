@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { readArtifact, runCollectorMain, writeArtifact } from '../../src/runner/script-runtime.mjs'
 import { buildSupabaseWriteSet } from '../../src/supabase-sink.mjs'
+import { loadCollectorEnvironment } from '../../src/collector-config.mjs'
 
 function jsonContent(value) {
   if (value && typeof value === 'object') return value
@@ -104,17 +105,18 @@ async function collect(input) {
   const articleRows = articleValue.rows || articleValue.articles || []
   const decisions = report.articles?.decisions || []
   const byId = new Map(articleRows.map(row => [String(row.article_id || row.article_key || row.article_url || row.title), row]))
-  const undecided = decisions.filter(row => row.status === 'ACCOUNT_UNDECIDED' || row.status === 'REVIEW')
-  const endpoint = process.env.LLM_BASE_URL || process.env.OPENAI_BASE_URL
-  const apiKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || process.env.AI_GATEWAY_API_KEY
-  const model = process.env.LLM_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini'
+  const undecided = decisions.filter(row => ['ACCOUNT_UNDECIDED', 'ACCOUNT_UNMATCHED', 'REVIEW'].includes(row.status))
+  const env = loadCollectorEnvironment()
+  const endpoint = String(env.LLM_BASE_URL || env.OPENAI_BASE_URL || '').trim()
+  const apiKey = String(env.LLM_API_KEY || env.OPENAI_API_KEY || env.AI_GATEWAY_API_KEY || '').trim()
+  const model = env.LLM_MODEL || env.OPENAI_MODEL || 'gpt-4o-mini'
   const results = []
   const errors = []
   let requestCount = 0
-  const codexProvider = !endpoint && !apiKey && process.env.LLM_CODEX_CLI === '1'
+  const codexProvider = !endpoint && !apiKey && env.LLM_CODEX_CLI === '1' && String(env.LLM_ENABLED).toLowerCase() !== 'false'
   if (codexProvider && undecided.length) {
     try {
-      const judged = await judgeCodexBatches(undecided.map(row => byId.get(String(row.article_id))).filter(Boolean), Math.max(1, Math.min(50, Number(process.env.LLM_CODEX_BATCH_SIZE || 40))))
+      const judged = await judgeCodexBatches(undecided.map(row => byId.get(String(row.article_id))).filter(Boolean), Math.max(1, Math.min(50, Number(env.LLM_CODEX_BATCH_SIZE || 40))))
       requestCount += judged.request_count
       errors.push(...judged.failures)
       const failedIds = new Set(judged.failures.map(row => String(row.article_id)))
@@ -133,7 +135,7 @@ async function collect(input) {
     for (const decision of undecided) {
       const article = byId.get(String(decision.article_id))
       if (!article) { errors.push({ article_id: decision.article_id, code: 'INPUT_MISSING', message: 'article row missing' }); continue }
-      if (!endpoint || !apiKey) { errors.push({ article_id: decision.article_id, code: 'LLM_ERROR', message: 'no LLM provider credentials are configured' }); continue }
+      if (String(env.LLM_ENABLED).toLowerCase() !== 'true' || !endpoint || !apiKey) { errors.push({ article_id: decision.article_id, code: String(env.LLM_ENABLED).toLowerCase() !== 'true' ? 'LLM_DISABLED' : 'LLM_ERROR', message: String(env.LLM_ENABLED).toLowerCase() !== 'true' ? 'LLM is disabled in central configuration' : 'no LLM provider credentials are configured' }); continue }
       try {
         const judged = await judge(article, { endpoint, apiKey, model })
         requestCount += 1
@@ -149,6 +151,12 @@ async function collect(input) {
   const updatedReport = { ...report, articles: { ...report.articles, decisions: [...updated.values()], statusCounts: Object.fromEntries([...new Set([...updated.values()].map(row => row.status))].map(status => [status, [...updated.values()].filter(row => row.status === status).length])) } }
   const accountValue = input.strategy_snapshot_ref ? await readArtifact(input.workdir, input.strategy_snapshot_ref) : { approved_accounts: [] }
   const writeSet = buildSupabaseWriteSet({ accountRows: accountValue.approved_accounts || [], articleRows, report: updatedReport, runDate: report.runDate, now: new Date().toISOString(), source: 'collector' })
+  // Preserve the deterministic filter's complete account write candidates. The
+  // LLM stage only revises article decisions and must not replace account sync
+  // candidates with the usually smaller approved-account strategy snapshot.
+  writeSet.accounts = Array.isArray(baseWriteSet.accounts) ? baseWriteSet.accounts : writeSet.accounts
+  writeSet.hotwords = Array.isArray(baseWriteSet.hotwords) ? baseWriteSet.hotwords : writeSet.hotwords
+  writeSet.metadata = { ...(baseWriteSet.metadata || {}), ...(writeSet.metadata || {}), source: 'collector' }
   const artifact = await writeArtifact(input.workdir, 'llm-write-set.json', writeSet)
   artifact.artifact_type = 'write_set'; artifact.schema_version = '1'; artifact.record_count = writeSet.articles.length + writeSet.accounts.length + writeSet.hotwords.length
   const provider = endpoint && apiKey ? 'openai-compatible' : codexProvider ? 'codex-cli' : 'unavailable'

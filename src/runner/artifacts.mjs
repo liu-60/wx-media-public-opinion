@@ -26,10 +26,16 @@ function sha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex')
 }
 
+function safeStepPart(value) {
+  const stepKey = String(value || '').trim()
+  if (!stepKey || stepKey === '.' || stepKey === '..' || /[\\/]/u.test(stepKey)) throw new TypeError('unsafe artifact path')
+  return /^[A-Za-z0-9._:-]+$/u.test(stepKey) ? stepKey : `step-${sha256(Buffer.from(stepKey)).slice(0,24)}`
+}
+
 export function createArtifactStore(root = path.resolve('data/collection-runs')) {
   const rootPath = path.resolve(root)
   const runPath = runId => path.join(rootPath, safePart(runId))
-  const attemptPath = (runId, stepKey, attempt) => path.join(runPath(runId), 'attempts', safePart(stepKey), safePart(attempt))
+  const attemptPath = (runId, stepKey, attempt) => path.join(runPath(runId), 'attempts', safeStepPart(stepKey), safePart(attempt))
   const write = async (filePath, content) => {
     await mkdir(path.dirname(filePath), { recursive: true })
     const buffer = Buffer.isBuffer(content) ? content : Buffer.from(String(content), 'utf8')
@@ -47,7 +53,7 @@ export function createArtifactStore(root = path.resolve('data/collection-runs'))
     writeText: async (runId, relativeName, value) => { const fileName = safePart(relativeName); return { artifact_id: fileName, ...(await write(path.join(runPath(runId), fileName), value)) } },
     writeLog: async (runId, stepKey, attempt, value) => {
       const relativePath = path.relative(rootPath, path.join(attemptPath(runId, stepKey, attempt), 'stderr.log')).replaceAll(path.sep, '/')
-      return { artifact_id: `log-${safePart(stepKey)}-${safePart(attempt)}`, relative_path: relativePath, ...(await write(path.join(rootPath, relativePath), redactDiagnostic(value))) }
+      return { artifact_id: `log-${safeStepPart(stepKey)}-${safePart(attempt)}`, relative_path: relativePath, ...(await write(path.join(rootPath, relativePath), redactDiagnostic(value))) }
     },
     manifest: async (runId, entries, metadata = {}) => {
       const normalized = entries.map(entry => ({ ...entry, sha256: entry.sha256 || sha256(Buffer.from(String(entry.content || ''), 'utf8')), content: undefined }))

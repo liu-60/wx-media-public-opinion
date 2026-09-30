@@ -1,5 +1,6 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { loadCollectorEnvironment } from '../../src/collector-config.mjs'
 
 const DEFAULT_CREDENTIALS_FILE = path.resolve('data', 'collector-credentials.json')
 const CREDENTIAL_REF = /^[A-Z][A-Z0-9_]{1,127}$/u
@@ -44,7 +45,7 @@ function safeMeta(ref, value, source) {
 
 /**
  * Local server-only credential storage. The API exposes only safe metadata;
- * saved values are injected into worker environments at process start.
+ * saved values are injected into each new run's child environment.
  */
 export function createCollectorCredentialStore({ filePath } = {}) {
   const target = credentialFilePath(filePath)
@@ -91,3 +92,6 @@ export function createCollectorCredentialStore({ filePath } = {}) {
   })
 }
 
+export function createCollectorEnvironmentProvider({ store = createCollectorCredentialStore(), baseEnv = process.env } = {}) {
+  return () => ({ ...loadCollectorEnvironment({ env: baseEnv }), ...store.toEnvironment() })
+}

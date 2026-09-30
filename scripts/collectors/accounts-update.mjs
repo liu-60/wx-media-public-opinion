@@ -5,10 +5,23 @@ import { syncAccounts } from '../../src/account-sync.mjs'
 import { readCollectorInput, runCollectorMain, writeArtifact } from '../../src/runner/script-runtime.mjs'
 
 async function readRows(input) {
-  const reference = input.input_artifacts[0]
-  if (!reference) { const error = new Error('account input artifact is missing'); error.code = 'INPUT_MISSING'; throw error }
-  const value = JSON.parse(await readFile(path.resolve(input.workdir, reference.artifact_id), 'utf8'))
-  return value.rows || value.accounts || value
+  const references = (input.input_artifacts || []).filter(reference => reference.artifact_type === 'accounts' || /accounts\.json$/iu.test(reference.artifact_id || ''))
+  if (!references.length) { const error = new Error('account input artifact is missing'); error.code = 'INPUT_MISSING'; throw error }
+  const rows = []
+  for (const reference of references) {
+    const value = JSON.parse(await readFile(path.resolve(input.workdir, reference.artifact_id), 'utf8'))
+    const current = value.rows || value.accounts || value
+    if (Array.isArray(current)) rows.push(...current)
+  }
+  const merged = new Map()
+  for (const row of rows) {
+    const key = String(row?.wx_biz || row?.wxBiz || '').trim()
+    if (!key) { merged.set(`invalid:${merged.size}`, row); continue }
+    const existing = merged.get(key)
+    if (!existing) merged.set(key, row)
+    else for (const [field, value] of Object.entries(row)) if ((existing[field] === null || existing[field] === undefined || existing[field] === '') && value !== null && value !== undefined && value !== '') existing[field] = value
+  }
+  return [...merged.values()]
 }
 
 async function collect(input) {

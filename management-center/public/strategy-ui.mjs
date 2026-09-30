@@ -38,9 +38,30 @@ export function filterActiveTargets(requestType, sourceTargets = [], activeTarge
   return activeTargets.filter(target => source.has(targetIdentity(requestType, target)))
 }
 
-export function calculateExpectedRequests({ requestType: _requestType, activeTargets = [], cursor = 0 } = {}) {
+function datePageComplete(completedItems, target, page) {
+  const key = `date:${stringValue(target)}`
+  return (Array.isArray(completedItems) ? completedItems : []).some(item => item?.request_type === 'date' && item?.target_key === key && Number(item?.page_no) === page && ['reserved', 'success', 'failed'].includes(item?.status))
+}
+
+function datePageEntry(completedItems, target, page) {
+  const key = `date:${stringValue(target)}`
+  return (Array.isArray(completedItems) ? completedItems : []).find(item => item?.request_type === 'date' && item?.target_key === key && Number(item?.page_no) === page) || null
+}
+
+function remainingDatePages(completedItems, target, pages) {
+  if (!pages) return 0
+  const first = (Array.isArray(completedItems) ? completedItems : []).find(item => item?.request_type === 'date' && item?.target_key === `date:${stringValue(target)}` && Number(item?.page_no) === 1 && ['reserved', 'success', 'failed'].includes(item?.status))
+  if (!first) return pages
+  if (first.status !== 'success' || first.next_cursor === null || first.next_cursor === undefined || first.next_cursor === '') return 0
+  if (pages > 1 && !datePageComplete(completedItems, target, 2)) return 1
+  return 0
+}
+
+export function calculateExpectedRequests({ requestType, activeTargets = [], cursor = 0, completedItems = [], month = null } = {}) {
   const pages = readNumber(cursor)
   if (!pages || pages <= 0) return 0
+  if (requestType === 'date') return activeTargets.reduce((total, target) => total + remainingDatePages(completedItems, target, pages), 0)
+  if (requestType === 'month') return normalizeMonthInput(month) ? pages : 0
   return Math.max(0, activeTargets.length) * pages
 }
 
@@ -102,10 +123,25 @@ export function buildNextRequestPreviewModel({
   minRead = null,
   maxRead = null,
   cursor = 0,
-  cycleNo = 1
+  cycleNo = 1,
+  completedItems = []
 } = {}) {
   const visibleTargets = activeTargets.slice(0, 3).map(target => ({ raw: target, ...presentTarget(target) }))
-  const expectedRequests = calculateExpectedRequests({ requestType, activeTargets, cursor })
+  const expectedRequests = calculateExpectedRequests({ requestType, activeTargets, cursor, completedItems, month })
+  const completedRequests = requestType === 'date'
+    ? activeTargets.reduce((total, target) => total + Array.from({ length: readNumber(cursor) || 0 }, (_, index) => index + 1).filter(page => ['success', 'failed'].includes(datePageEntry(completedItems, target, page)?.status)).length, 0)
+    : null
+  let nextDateRequest = null
+  if (requestType === 'date') {
+    nextDateRequest = activeTargets.flatMap(target => Array.from({ length: readNumber(cursor) || 0 }, (_, index) => index + 1).filter(page => !datePageComplete(completedItems, target, page)).map(page => `${stringValue(target)} · 第 ${page} 页`))[0]
+    if (!nextDateRequest) {
+      const pending = activeTargets.flatMap(target => Array.from({ length: readNumber(cursor) || 0 }, (_, index) => index + 1).filter(page => datePageEntry(completedItems, target, page)?.status === 'reserved').map(page => `${stringValue(target)} · 第 ${page} 页结果待确认`))[0]
+      nextDateRequest = pending || '当前两日已完成'
+    }
+  }
+  const nextMonthRequest = requestType === 'month' && normalizeMonthInput(month) && readNumber(cursor) > 0
+    ? `${normalizeMonthInput(month)} · 第 1 页`
+    : null
   return {
     method: requestTypeLabel || '采集策略',
     date: stringValue(date),
@@ -117,13 +153,17 @@ export function buildNextRequestPreviewModel({
     pages: readNumber(cursor) && readNumber(cursor) > 0 ? `${readNumber(cursor)} 页` : '暂不请求',
     expectedRequests,
     expectedRequestsLabel: expectedRequests > 0 ? `${formatMetric(expectedRequests)} 次` : '暂不请求',
+    completedRequests,
+    completedRequestsLabel: completedRequests === null ? '—' : `${formatMetric(completedRequests)} 次`,
+    nextRequest: nextDateRequest || nextMonthRequest,
     cycleNo: readNumber(cycleNo) || 1
   }
 }
 
-export function strategyStatus({ cursor = 0, activeTargets, active_targets, capability = null } = {}) {
+export function strategyStatus({ request_type = '', month = null, date = null, cursor = 0, activeTargets, active_targets, capability = null } = {}) {
   const targets = activeTargets ?? active_targets ?? []
-  if (!readNumber(cursor) || !targets.length) return { label: '未启用', className: 'pill-amber' }
+  const timeTargetConfigured = request_type === 'month' ? Boolean(normalizeMonthInput(month)) : request_type === 'date' ? Boolean(stringValue(date)) : false
+  if (!readNumber(cursor) || (!targets.length && !timeTargetConfigured)) return { label: '未启用', className: 'pill-amber' }
   if (capability?.available === true) return { label: '运行中', className: 'pill-green' }
   return { label: '已配置', className: 'pill-blue' }
 }

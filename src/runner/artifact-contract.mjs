@@ -9,6 +9,8 @@ export const BUSINESS_ARTIFACT_TYPES = Object.freeze([
   'accounts',
   'articles',
   'hotwords',
+  'hotword_links',
+  'pending_review_articles',
   'filtered_articles',
   'write_set',
   'publish_result',

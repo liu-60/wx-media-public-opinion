@@ -1,4 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { canonicalArtifactType, isBusinessArtifact, normalizeArtifactEntry } from '../../src/runner/artifact-contract.mjs'
 
@@ -182,6 +183,73 @@ export function createCollectionArtifactService({ root = path.resolve('data/coll
         response.invalid_records = parsed.invalid
       }
       return response
+    },
+    async getStepLog(runId, stepRunId, { limit = 200_000 } = {}) {
+      const id = safePart(runId, 'run_id')
+      if (typeof runService.getStepRun !== 'function') {
+        const error = new Error('步骤日志查询暂不可用')
+        error.status = 503
+        error.code = 'STEP_LOG_UNAVAILABLE'
+        throw error
+      }
+      const stepResult = await runService.getStepRun(id, stepRunId)
+      const step = stepResult?.item
+      if (!step || String(step.run_id) !== id) {
+        const error = new Error('未找到该运行下的步骤记录')
+        error.status = 404
+        error.code = 'STEP_RUN_NOT_FOUND'
+        throw error
+      }
+      if (!step.log_ref) {
+        const error = new Error('该步骤没有保存标准错误日志')
+        error.status = 404
+        error.code = 'STEP_LOG_NOT_FOUND'
+        throw error
+      }
+      const run = (await runService.get(id)).item
+      const manifest = await readManifest(rootPath, id, run)
+      const entry = entries(manifest).find(value => value?.kind === 'stderr-log'
+        && value?.relative_path === step.log_ref
+        && value?.step_key === step.step_key
+        && Number(value?.attempt) === Number(step.attempt)
+        && value?.availability !== 'unavailable')
+      if (!entry) {
+        const error = new Error('步骤日志不在该运行的产物清单中')
+        error.status = 404
+        error.code = 'STEP_LOG_NOT_FOUND'
+        throw error
+      }
+      const relativePath = safeRelative(entry.relative_path)
+      const runRoot = path.resolve(rootPath, id)
+      const runRelativePath = relativePath.startsWith(`${id}/`) ? relativePath.slice(id.length + 1) : relativePath
+      const target = path.resolve(runRoot, runRelativePath)
+      if (!target.startsWith(`${runRoot}${path.sep}`)) {
+        const error = new Error('步骤日志路径无效')
+        error.status = 400
+        error.code = 'INVALID_ARTIFACT_ID'
+        throw error
+      }
+      const buffer = await readFile(target)
+      const sha256 = createHash('sha256').update(buffer).digest('hex')
+      if (entry.sha256 && entry.sha256 !== sha256) {
+        const error = new Error('步骤日志与产物清单中的校验值不一致')
+        error.status = 409
+        error.code = 'ARTIFACT_HASH_MISMATCH'
+        throw error
+      }
+      const content = buffer.toString('utf8')
+      const maxChars = Math.max(1, Math.min(500_000, Number(limit) || 200_000))
+      const truncated = content.length > maxChars
+      return {
+        run_id: id,
+        step_run_id: String(step.id),
+        step_key: step.step_key,
+        attempt: step.attempt,
+        content: truncated ? content.slice(-maxChars) : content,
+        truncated,
+        bytes: buffer.byteLength,
+        sha256
+      }
     },
     async candidates({ artifactType = null, schemaVersion = null, artifact_type = null, schema_version = null, requirements: rawRequirements = null, limit = 100 } = {}) {
       artifactType = artifactType || artifact_type

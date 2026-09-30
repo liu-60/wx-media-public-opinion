@@ -91,6 +91,7 @@ function compare(left, op, right) {
 export function evaluateCondition(condition, context = {}) {
   if (condition === undefined || condition === null) return true
   if (!condition || typeof condition !== 'object' || Array.isArray(condition)) throw new TypeError('condition must be an object')
+  if (Object.keys(condition).length === 0) return true
   if (Object.hasOwn(condition, 'all')) {
     if (!Array.isArray(condition.all)) throw new TypeError('condition.all must be an array')
     return condition.all.every(item => evaluateCondition(item, context))

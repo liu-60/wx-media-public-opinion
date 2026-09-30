@@ -2,23 +2,396 @@
   "schema_version": "collection-workflow-v1",
   "name": "默认采集编排 · 真实全链路",
   "enabled": true,
-  "revision": 6,
-  "default_config": { "publish_mode": "preview" },
-  "retention_config": { "success_days": 7, "failure_days": 30 },
+  "revision": 9,
+  "default_config": {
+    "publish_mode": "preview"
+  },
+  "retention_config": {
+    "success_days": 7,
+    "failure_days": 30
+  },
   "steps": [
-    { "step_key": "wxrank-base", "seq": 10, "script_key": "wxrank-base", "enabled": true, "config_override": {}, "condition": null, "continue_on_error": false, "retry_count": 0 },
-    { "step_key": "article-collect", "seq": 20, "script_key": "article-collect", "enabled": true, "config_override": { "range": "7d", "page": 1 }, "condition": null, "continue_on_error": true, "retry_count": 0, "timeout_seconds": 1800 },
-    { "step_key": "redfox-gzh", "seq": 30, "script_key": "redfox-gzh", "enabled": true, "config_override": { "lookback_days": 2, "source_nos": ["OFFSPQ0U", "ZIGAGYYT"] }, "condition": null, "continue_on_error": false, "retry_count": 0, "timeout_seconds": 1800 },
-    { "step_key": "accounts-update", "seq": 40, "script_key": "accounts-update", "enabled": true, "config_override": { "output_name": "accounts-updated.json" }, "condition": { "path": "steps.wxrank-base.status", "op": "eq", "value": "success" }, "continue_on_error": false, "retry_count": 0 },
-    { "step_key": "articles-merge-seed", "seq": 50, "script_key": "articles-merge", "enabled": true, "config_override": { "input_artifacts": ["wxrank-article-write-set.json", "redfox-gzh-articles.json"], "required_inputs": ["wxrank-article-write-set.json", "redfox-gzh-articles.json"], "output_name": "seed-articles.json", "duplicate_name": "seed-duplicate-report.json", "invalid_name": "seed-invalid-articles.json", "source_summary_name": "seed-source-summary.json" }, "condition": null, "continue_on_error": false, "retry_count": 0 },
-    { "step_key": "hotwords-first", "seq": 60, "script_key": "hotwords-update", "enabled": true, "config_override": { "input_artifacts": ["seed-articles.json"], "required_inputs": ["seed-articles.json"], "stage": "first", "min_article_count": 2, "output_name": "hotword-snapshot-v1.json", "new_hotwords_name": "new-hotwords.json" }, "condition": null, "continue_on_error": false, "retry_count": 0 },
-    { "step_key": "hotword-expand", "seq": 70, "script_key": "hotword-expand", "enabled": true, "config_override": { "input_artifacts": ["hotword-snapshot-v1.json"], "required_inputs": ["hotword-snapshot-v1.json"], "max_requests_per_hotword": 2, "max_hotwords": 20, "max_total_requests": 40 }, "condition": null, "continue_on_error": true, "retry_count": 0 },
-    { "step_key": "articles-merge-final", "seq": 80, "script_key": "articles-merge", "enabled": true, "config_override": { "input_artifacts": ["seed-articles.json", "hotword-articles.json"], "required_inputs": ["seed-articles.json", "hotword-articles.json"], "output_name": "all-normalized-articles.json", "duplicate_name": "duplicate-report.json", "invalid_name": "invalid-articles.json", "source_summary_name": "source-summary.json" }, "condition": null, "continue_on_error": false, "retry_count": 0 },
-    { "step_key": "hotwords-final", "seq": 90, "script_key": "hotwords-update", "enabled": true, "config_override": { "input_artifacts": ["all-normalized-articles.json"], "required_inputs": ["all-normalized-articles.json"], "stage": "final", "min_article_count": 2, "output_name": "hotwords-final.json", "new_hotwords_name": "new-hotwords-final.json" }, "condition": null, "continue_on_error": false, "retry_count": 0 },
-    { "step_key": "articles-filter", "seq": 100, "script_key": "articles-filter", "enabled": true, "config_override": { "input_artifacts": ["accounts-updated.json", "all-normalized-articles.json"], "required_inputs": ["accounts-updated.json", "all-normalized-articles.json"] }, "condition": null, "continue_on_error": false, "retry_count": 0 },
-    { "step_key": "llm-filter", "seq": 110, "script_key": "llm-filter", "enabled": true, "config_override": { "input_artifacts": ["articles-filter-report.json", "all-normalized-articles.json", "write-set.json"], "required_inputs": ["articles-filter-report.json", "all-normalized-articles.json", "write-set.json"] }, "condition": null, "continue_on_error": true, "retry_count": 0 },
-    { "step_key": "freeze-write-set", "seq": 120, "script_key": "freeze-write-set", "enabled": true, "config_override": { "input_artifacts": ["llm-write-set.json", "all-normalized-articles.json", "hotwords-final.json"], "required_inputs": ["llm-write-set.json", "all-normalized-articles.json", "hotwords-final.json"] }, "condition": null, "continue_on_error": false, "retry_count": 0 },
-    { "step_key": "publish-preview", "seq": 130, "script_key": "publish-results", "enabled": true, "config_override": { "input_artifacts": ["frozen-write-set.json"], "required_inputs": ["frozen-write-set.json"], "publish_stage": "preview", "output_name": "publish-preview.json" }, "condition": { "path": "run.publish_mode", "op": "in", "value": ["preview", "commit"] }, "continue_on_error": false, "retry_count": 0 },
-    { "step_key": "publish-results", "seq": 140, "script_key": "publish-results", "enabled": true, "config_override": { "input_artifacts": ["frozen-write-set.json"], "required_inputs": ["frozen-write-set.json"], "publish_stage": "commit", "output_name": "publish-result.json" }, "condition": { "path": "run.publish_mode", "op": "eq", "value": "commit" }, "continue_on_error": false, "retry_count": 0 }
+    {
+      "step_key": "wxrank-base",
+      "seq": 10,
+      "script_key": "wxrank-base",
+      "enabled": true,
+      "config_override": {
+        "output_name": "wxrank-base-accounts.json"
+      },
+      "condition": null,
+      "continue_on_error": false,
+      "retry_count": 0
+    },
+    {
+      "step_key": "tophub-hotwords",
+      "seq": 15,
+      "script_key": "tophub-hotwords",
+      "enabled": true,
+      "config_override": {},
+      "condition": null,
+      "continue_on_error": true,
+      "retry_count": 0,
+      "timeout_seconds": 900
+    },
+    {
+      "step_key": "article-collect",
+      "seq": 20,
+      "script_key": "article-collect",
+      "enabled": true,
+      "config_override": {
+        "range": "7d",
+        "page": 1
+      },
+      "condition": null,
+      "continue_on_error": true,
+      "retry_count": 0,
+      "timeout_seconds": 1800
+    },
+    {
+      "step_key": "wxrank-date-strategy",
+      "seq": 25,
+      "script_key": "wxrank-strategy",
+      "enabled": true,
+      "config_override": {
+        "request_types": [
+          "date"
+        ]
+      },
+      "condition": null,
+      "continue_on_error": true,
+      "retry_count": 0,
+      "timeout_seconds": 1800
+    },
+    {
+      "step_key": "redfox-gzh",
+      "seq": 30,
+      "script_key": "redfox-gzh",
+      "enabled": true,
+      "config_override": {
+        "lookback_days": 2,
+        "source_nos": [
+          "OFFSPQ0U",
+          "ZIGAGYYT"
+        ]
+      },
+      "condition": null,
+      "continue_on_error": true,
+      "retry_count": 0,
+      "timeout_seconds": 1800
+    },
+    {
+      "step_key": "accounts-update",
+      "seq": 40,
+      "script_key": "accounts-update",
+      "enabled": true,
+      "config_override": {
+        "output_name": "accounts-updated.json",
+        "input_artifacts": [
+          "wxrank-base-accounts.json",
+          "redfox-gzh-accounts.json"
+        ],
+        "required_inputs": [
+          "wxrank-base-accounts.json"
+        ]
+      },
+      "condition": {
+        "path": "steps.wxrank-base.status",
+        "op": "in",
+        "value": [
+          "success",
+          "partial"
+        ]
+      },
+      "continue_on_error": false,
+      "retry_count": 0
+    },
+    {
+      "step_key": "articles-merge-seed",
+      "seq": 50,
+      "script_key": "articles-merge",
+      "enabled": true,
+      "config_override": {
+        "input_artifacts": [
+          "wxrank-article-write-set.json",
+          "redfox-gzh-articles.json",
+          "wxrank-strategy-articles.json"
+        ],
+        "required_inputs": [
+          "redfox-gzh-articles.json"
+        ],
+        "output_name": "seed-articles.json",
+        "duplicate_name": "seed-duplicate-report.json",
+        "invalid_name": "seed-invalid-articles.json",
+        "source_summary_name": "seed-source-summary.json"
+      },
+      "condition": null,
+      "continue_on_error": false,
+      "retry_count": 0
+    },
+    {
+      "step_key": "articles-filter-seed",
+      "seq": 60,
+      "script_key": "articles-filter",
+      "enabled": true,
+      "config_override": {
+        "input_artifacts": [
+          "accounts-updated.json",
+          "seed-articles.json"
+        ],
+        "required_inputs": [
+          "accounts-updated.json",
+          "seed-articles.json"
+        ],
+        "enable_llm": false,
+        "database_name": "articles-filter-seed.sqlite",
+        "report_output_name": "seed-filter-report.json",
+        "filtered_output_name": "seed-filtered-articles.json",
+        "hotwords_output_name": "seed-article-hotwords.json",
+        "write_set_output_name": "seed-write-set.json"
+      },
+      "condition": null,
+      "continue_on_error": false,
+      "retry_count": 0
+    },
+    {
+      "step_key": "hotwords-first",
+      "seq": 70,
+      "script_key": "hotwords-update",
+      "enabled": true,
+      "config_override": {
+        "input_artifacts": [
+          "seed-filtered-articles.json",
+          "tophub-hotwords.json"
+        ],
+        "required_inputs": [
+          "seed-filtered-articles.json",
+          "tophub-hotwords.json"
+        ],
+        "mode": "link_articles",
+        "persist": false,
+        "min_article_count": 2,
+        "articles_output_name": "hotword-linked-articles.json",
+        "hotwords_output_name": "hotword-linked-hotwords.json",
+        "links_output_name": "hotword-article-links.json"
+      },
+      "condition": null,
+      "continue_on_error": false,
+      "retry_count": 0,
+      "timeout_seconds": 1800
+    },
+    {
+      "step_key": "hotword-expand",
+      "seq": 80,
+      "script_key": "hotword-expand",
+      "enabled": true,
+      "config_override": {
+        "input_artifacts": [
+          "hotword-linked-articles.json",
+          "hotword-linked-hotwords.json"
+        ],
+        "required_inputs": [
+          "hotword-linked-articles.json",
+          "hotword-linked-hotwords.json"
+        ],
+        "search_mode": "dual_platform",
+        "max_requests_per_hotword": 2,
+        "max_hotwords": 10,
+        "max_total_requests": 6,
+        "target_article_samples": 20,
+        "max_llm_quality_requests": 10,
+        "max_trend_age_days": 3,
+        "no_new_cooldown_days": 7
+      },
+      "condition": null,
+      "continue_on_error": true,
+      "retry_count": 0,
+      "timeout_seconds": 1800
+    },
+    {
+      "step_key": "articles-merge-final",
+      "seq": 90,
+      "script_key": "articles-merge",
+      "enabled": true,
+      "config_override": {
+        "input_artifacts": [
+          "seed-filtered-articles.json",
+          "hotword-expand-articles.json"
+        ],
+        "required_inputs": [
+          "seed-filtered-articles.json",
+          "hotword-expand-articles.json"
+        ],
+        "output_name": "all-normalized-articles.json",
+        "duplicate_name": "final-duplicate-report.json",
+        "invalid_name": "final-invalid-articles.json",
+        "source_summary_name": "final-source-summary.json"
+      },
+      "condition": null,
+      "continue_on_error": false,
+      "retry_count": 0
+    },
+    {
+      "step_key": "articles-filter-final",
+      "seq": 100,
+      "script_key": "articles-filter",
+      "enabled": true,
+      "config_override": {
+        "input_artifacts": [
+          "accounts-updated.json",
+          "all-normalized-articles.json"
+        ],
+        "required_inputs": [
+          "accounts-updated.json",
+          "all-normalized-articles.json"
+        ],
+        "enable_llm": false,
+        "database_name": "articles-filter-final.sqlite",
+        "report_output_name": "final-articles-filter-report.json",
+        "filtered_output_name": "final-filtered-articles.json",
+        "hotwords_output_name": "final-article-hotwords.json",
+        "write_set_output_name": "final-write-set.json"
+      },
+      "condition": null,
+      "continue_on_error": false,
+      "retry_count": 0
+    },
+    {
+      "step_key": "llm-filter",
+      "seq": 110,
+      "script_key": "llm-filter",
+      "enabled": true,
+      "config_override": {
+        "input_artifacts": [
+          "final-articles-filter-report.json",
+          "all-normalized-articles.json",
+          "final-write-set.json"
+        ],
+        "required_inputs": [
+          "final-articles-filter-report.json",
+          "all-normalized-articles.json",
+          "final-write-set.json"
+        ]
+      },
+      "condition": null,
+      "continue_on_error": true,
+      "retry_count": 0,
+      "timeout_seconds": 1800
+    },
+    {
+      "step_key": "hotwords-final",
+      "seq": 120,
+      "script_key": "hotwords-update",
+      "enabled": true,
+      "config_override": {
+        "input_artifacts": [
+          "llm-write-set.json",
+          "tophub-hotwords.json",
+          "hotword-quality-review.json"
+        ],
+        "required_inputs": [
+          "llm-write-set.json",
+          "tophub-hotwords.json"
+        ],
+        "mode": "link_articles",
+        "persist": true,
+        "min_article_count": 1,
+        "articles_output_name": "final-hotword-articles.json",
+        "hotwords_output_name": "hotwords-final.json",
+        "links_output_name": "final-hotword-links.json"
+      },
+      "condition": null,
+      "continue_on_error": false,
+      "retry_count": 0,
+      "timeout_seconds": 1800
+    },
+    {
+      "step_key": "freeze-write-set",
+      "seq": 130,
+      "script_key": "freeze-write-set",
+      "enabled": true,
+      "config_override": {
+        "input_artifacts": [
+          "llm-write-set.json",
+          "all-normalized-articles.json",
+          "hotwords-final.json"
+        ],
+        "required_inputs": [
+          "llm-write-set.json",
+          "all-normalized-articles.json",
+          "hotwords-final.json"
+        ]
+      },
+      "condition": null,
+      "continue_on_error": false,
+      "retry_count": 0,
+      "timeout_seconds": 1800
+    },
+    {
+      "step_key": "publish-preview",
+      "seq": 140,
+      "script_key": "publish-results",
+      "enabled": true,
+      "config_override": {
+        "input_artifacts": [
+          "frozen-write-set.json"
+        ],
+        "required_inputs": [
+          "frozen-write-set.json"
+        ],
+        "publish_stage": "preview",
+        "output_name": "publish-preview.json"
+      },
+      "condition": {
+        "path": "run.publish_mode",
+        "op": "in",
+        "value": [
+          "preview",
+          "commit"
+        ]
+      },
+      "continue_on_error": false,
+      "retry_count": 0
+    },
+    {
+      "step_key": "publish-results",
+      "seq": 150,
+      "script_key": "publish-results",
+      "enabled": true,
+      "config_override": {
+        "input_artifacts": [
+          "frozen-write-set.json"
+        ],
+        "required_inputs": [
+          "frozen-write-set.json"
+        ],
+        "publish_stage": "commit",
+        "output_name": "publish-result.json"
+      },
+      "condition": {
+        "path": "run.publish_mode",
+        "op": "eq",
+        "value": "commit"
+      },
+      "continue_on_error": false,
+      "retry_count": 0
+    },
+    {
+      "step_key": "workflow-results",
+      "seq": 160,
+      "script_key": "workflow-results",
+      "enabled": true,
+      "config_override": {
+        "input_artifacts": [
+          "frozen-write-set.json"
+        ],
+        "required_inputs": [
+          "frozen-write-set.json"
+        ]
+      },
+      "condition": null,
+      "continue_on_error": false,
+      "retry_count": 0
+    }
   ]
 }

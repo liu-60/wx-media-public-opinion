@@ -1,4 +1,4 @@
-export const WXRANK_REQUEST_TYPES = Object.freeze(['account', 'wx_type'])
+export const WXRANK_REQUEST_TYPES = Object.freeze(['account', 'wx_type', 'month', 'date'])
 
 const ALLOWED_TYPES = new Set(WXRANK_REQUEST_TYPES)
 
@@ -26,12 +26,12 @@ export function validateWxRankRequestTypes(config = {}, { mode = 'workflow' } = 
     : config
   const values = normalizeWxRankRequestTypes(source)
   if (!values.length) throw configError('INVALID_REQUEST_TYPES', 'request_types must contain at least one strategy')
-  if (values.some(value => !ALLOWED_TYPES.has(value))) throw configError('INVALID_REQUEST_TYPE', 'request_types must contain only account or wx_type')
+  if (values.some(value => !ALLOWED_TYPES.has(value))) throw configError('INVALID_REQUEST_TYPE', 'request_types must contain only account, wx_type, month, or date')
   if (mode === 'single_validation' && values.length !== 1) throw configError('INVALID_REQUEST_TYPES', 'single-script validation accepts exactly one strategy')
   if (mode !== 'workflow' && mode !== 'single_validation') throw configError('INVALID_EXECUTION_MODE', 'execution mode is invalid')
   return values
 }
 
 export function requestTypeLabel(value) {
-  return value === 'account' ? '账号策略' : value === 'wx_type' ? '类型策略' : String(value || '')
+  return value === 'account' ? '账号策略' : value === 'wx_type' ? '类型策略' : value === 'month' ? '月份策略' : value === 'date' ? '日期策略' : String(value || '')
 }

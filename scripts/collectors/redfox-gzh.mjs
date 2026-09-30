@@ -6,7 +6,15 @@ async function collect(input) {
   const started = Date.now()
   const startDate = input.config.start_date
   const endDate = input.config.end_date
-  const targetDate = input.config.target_date || endDate || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore' }).format(new Date())
+  const businessNow = new Date()
+  const businessParts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(businessNow)
+  const business = Object.fromEntries(businessParts.map(part => [part.type, part.value]))
+  const businessDate = `${business.year}-${business.month}-${business.day}`
+  const afterCutoff = Number(business.hour) > 18 || (Number(business.hour) === 18 && Number(business.minute) >= 30)
+  const offsetDays = afterCutoff ? 1 : 2
+  const [businessYear, businessMonth, businessDay] = businessDate.split('-').map(Number)
+  const defaultTargetDate = new Date(Date.UTC(businessYear, businessMonth - 1, businessDay - offsetDays)).toISOString().slice(0, 10)
+  const targetDate = input.config.target_date || endDate || defaultTargetDate
   const requestedRange = { start_date: startDate || targetDate, end_date: endDate || targetDate }
   const sourceNos = Array.isArray(input.config.source_nos) && input.config.source_nos.length ? input.config.source_nos : ['OFFSPQ0U', 'ZIGAGYYT']
   const result = await fetchRedfoxSources({ targetDate, startDate, endDate, lookbackDays: Number(input.config.lookback_days ?? 2), sourceNos })

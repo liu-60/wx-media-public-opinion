@@ -1,4 +1,4 @@
-const SUPPORTED_REQUEST_TYPES = new Set(['account', 'wx_type'])
+const SUPPORTED_REQUEST_TYPES = new Set(['account', 'wx_type', 'month', 'date'])
 
 function text(value) {
   return value === undefined || value === null ? '' : String(value).trim()
@@ -10,7 +10,7 @@ export function getWxRankStrategyCapability(requestType) {
     requestType,
     available,
     code: available ? 'OK' : 'CAPABILITY_UNAVAILABLE',
-    reason: available ? null : 'CAPABILITY_UNAVAILABLE: WxRank strategy supports account and wx_type only'
+    reason: available ? null : 'CAPABILITY_UNAVAILABLE: WxRank strategy supports account, wx_type, month, and date'
   }
 }
 
@@ -34,6 +34,27 @@ export function createWxRankStrategyRequest({ requestType, strategy = {}, target
     if (value !== undefined && value !== null && value !== '') request[destination] = value
   }
 
+  if (type === 'date') {
+    const date = text(typeof target === 'string' ? target : target?.date) || text(strategy.date)
+    if (!/^20\d{2}-\d{2}-\d{2}$/u.test(date)) {
+      const error = new Error('STRATEGY_TARGET_INVALID: date target must be YYYY-MM-DD')
+      error.code = 'STRATEGY_TARGET_INVALID'
+      throw error
+    }
+    request.date = date
+  }
+
+  if (type === 'month') {
+    const rawMonth = text(typeof target === 'string' ? target : target?.month) || text(strategy.month)
+    const month = rawMonth.replace('-', '')
+    if (!/^20\d{4}$/u.test(month)) {
+      const error = new Error('STRATEGY_TARGET_INVALID: month target must be YYYYMM')
+      error.code = 'STRATEGY_TARGET_INVALID'
+      throw error
+    }
+    request.month = month
+  }
+
   if (type === 'account') {
     const wxBiz = text(target?.wx_biz ?? target?.wxBiz)
     if (!wxBiz) {
@@ -42,7 +63,7 @@ export function createWxRankStrategyRequest({ requestType, strategy = {}, target
       throw error
     }
     request.wxBiz = wxBiz
-  } else {
+  } else if (type === 'wx_type') {
     const wxType = text(typeof target === 'string' ? target : target?.wx_type)
     if (!wxType) {
       const error = new Error('STRATEGY_TARGET_INVALID: wx_type target is empty')

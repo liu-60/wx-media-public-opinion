@@ -52,7 +52,8 @@ export function buildStrategyCardModel(item = {}, config = {}, accountOptions = 
     minRead: item.min_read,
     maxRead: item.max_read,
     cursor: item.cursor,
-    cycleNo: item.cycle_no
+    cycleNo: item.cycle_no,
+    completedItems: item.completed_items
   })
   return {
     status: strategyStatusTag(item),
@@ -61,6 +62,8 @@ export function buildStrategyCardModel(item = {}, config = {}, accountOptions = 
     hiddenTargetCount: preview.hiddenTargetCount,
     targetCount: preview.targetCount,
     expectedRequestsLabel: preview.expectedRequestsLabel,
+    completedRequestsLabel: preview.completedRequestsLabel,
+    nextRequest: preview.nextRequest,
     pagesLabel: preview.pages,
     cycleLabel: `第 ${preview.cycleNo} 轮`,
     scheduleLabel: preview.date ? `采集日期 ${preview.date}` : preview.month ? `采集月份 ${preview.month}` : '暂未设置下次请求对象',

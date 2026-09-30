@@ -5,8 +5,9 @@ const ACCOUNT_LIST_COLUMNS = ['account_id', 'wx_biz', 'wx_name', 'verify', 'deci
 const ACCOUNT_DETAIL_COLUMNS = ['account_id', 'wx_biz', 'wx_name', 'verify', 'description', 'decision_status', 'decision_source', 'read_median', 'read_max', 'filter_rule_id', 'updated_at']
 const PROFILE_LIST_COLUMNS = ['account_id', 'wx_type', 'region', 'read_avg', 'active_days']
 const PROFILE_DETAIL_COLUMNS = ['account_id', 'wx_user', 'avatar', 'wx_type', 'region', 'tags', 'last_pub_time', 'pub_count', 'active_days', 'read_avg', 'read_median', 'read_max', 'burst_count', 'burst_rate', 'look_avg', 'look_median', 'look_max', 'like_avg', 'like_median', 'like_max', 'share_avg', 'share_median', 'share_max', 'comment_avg', 'comment_median', 'comment_max', 'ori_count', 'manual_tags', 'collected_at']
-const ARTICLE_COLUMNS = ['id', 'account_id', 'article_sn', 'idx', 'title', 'article_url', 'published_at', 'read_num', 'read_num_capped', 'like_num', 'look_num', 'share_num', 'comment_num', 'is_original', 'source_code', 'updated_at']
+const ARTICLE_COLUMNS = ['id', 'article_key', 'account_id', 'article_sn', 'idx', 'title', 'article_url', 'published_at', 'read_num', 'read_num_capped', 'like_num', 'look_num', 'share_num', 'comment_num', 'is_original', 'source_code', 'updated_at']
 const ACCOUNT_PROFILE_RELATION = 'account_profiles'
+const ACCOUNT_ARTICLE_RELATION = 'articles'
 const ACCOUNT_RELATION = 'accounts'
 const PROFILE_COLLISION_COLUMNS = new Set(['account_id', 'read_median', 'read_max'])
 const ACCOUNT_NUMERIC_FIELDS = Object.freeze({
@@ -227,8 +228,10 @@ function profileFromRow(row) {
 
 function accountDto(row, { detail = false, accountColumns = ACCOUNT_LIST_COLUMNS, profileColumns = PROFILE_LIST_COLUMNS } = {}) {
   const profile = profileFromRow(row.account_profiles)
+  const latestArticle = profileFromRow(row[ACCOUNT_ARTICLE_RELATION])
   const result = {}
   for (const column of accountColumns) result[column] = row[column]
+  result.latest_article_url = latestArticle?.article_url ?? null
   for (const column of profileColumns) {
     const value = profile?.[column]
     result[PROFILE_COLLISION_COLUMNS.has(column) ? `profile_${column}` : column] = value
@@ -333,7 +336,16 @@ export function createAccountsArticlesService({ client, now = () => new Date().t
     }
     const result = await client.list('accounts', {
       columns: accountColumns,
-      relations: [relation],
+      relations: [
+        relation,
+        {
+          table: ACCOUNT_ARTICLE_RELATION,
+          columns: ['id', 'article_url', 'published_at'],
+          filters: [{ column: 'article_url', operator: 'not.is', value: null }],
+          order: [{ column: 'published_at', direction: 'desc', nulls: 'last' }, { column: 'id', direction: 'desc' }],
+          limit: 1
+        }
+      ],
       search: search === undefined || search === '' ? undefined : { columns: ['wx_name', 'wx_biz'], value: validation.text(search, { max: 128 }), mode: input.searchMode === 'exact' ? 'exact' : 'contains' },
       filters,
       order: requestedSort,
@@ -567,6 +579,10 @@ export function createAccountsArticlesService({ client, now = () => new Date().t
     return { items: (Array.isArray(result.data) ? result.data : []).map(row => articleDto(row)), total: result.total ?? null, page, pageSize }
   }
 
+  async function listAccountArticles(accountId, input = {}) {
+    return listArticles({ ...input, accountId: positiveId(accountId) })
+  }
+
   async function getArticle(id) {
     const articleId = positiveId(id)
     const result = await client.get('articles', articleId, {
@@ -615,5 +631,5 @@ export function createAccountsArticlesService({ client, now = () => new Date().t
     return { count: succeededIds.length, requestedCount: normalizedIds.length, succeededIds, failed }
   }
 
-  return Object.freeze({ listAccounts, listStrategyAccounts, getAccount, patchAccountDecision, bulkAccountDecision, patchAccountTags, listArticles, getArticle, deleteArticle, bulkDeleteArticles })
+  return Object.freeze({ listAccounts, listStrategyAccounts, getAccount, patchAccountDecision, bulkAccountDecision, patchAccountTags, listArticles, listAccountArticles, getArticle, deleteArticle, bulkDeleteArticles })
 }

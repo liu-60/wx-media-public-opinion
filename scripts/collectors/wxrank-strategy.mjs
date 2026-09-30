@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { readFile, rename, mkdir as mkdirAsync, writeFile as writeFileAsync } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createSupabaseClient } from '../../management-center/services/supabase.mjs'
@@ -9,9 +11,10 @@ import { createWxRankStrategyRequest } from '../../src/collector-adapters/wxrank
 import { runCollectorMain, writeArtifact } from '../../src/runner/script-runtime.mjs'
 import { validateWxRankRequestTypes } from '../../src/runner/wxrank-strategy-config.mjs'
 import { normalizeRankedArticle } from './article-collect.mjs'
+import { loadCollectorEnvironment } from '../../src/collector-config.mjs'
 
 export const WXRANK_STRATEGY_REQUEST_LIMIT = 4
-const STRATEGY_TYPES = new Set(['account', 'wx_type'])
+const STRATEGY_TYPES = new Set(['account', 'wx_type', 'month', 'date'])
 const STRATEGY_COLUMNS = Object.freeze([
   'id', 'request_type', 'source_targets', 'active_targets', 'completed_items',
   'date', 'month', 'cursor', 'min_read', 'max_read', 'cycle_no', 'updated_at'
@@ -48,12 +51,21 @@ export function strategyTargetKey(requestType, target) {
     const identity = target?.account_id ?? target?.wx_biz ?? target?.wxBiz
     return `account:${text(identity)}`
   }
+  if (requestType === 'date') return `date:${text(typeof target === 'string' ? target : target?.date)}`
+  if (requestType === 'month') return `month:${text(typeof target === 'string' ? target : target?.month)}`
   return `${requestType === 'wx_type' ? 'type' : requestType}:${text(typeof target === 'string' ? target : target?.wx_type)}`
 }
 
 function strategyTargetLabel(requestType, target) {
   if (requestType === 'account') return text(target?.wx_name) || text(target?.wx_biz) || text(target?.account_id) || '公众号'
+  if (requestType === 'date') return text(typeof target === 'string' ? target : target?.date) || '采集日期'
+  if (requestType === 'month') return text(typeof target === 'string' ? target : target?.month) || '采集月份'
   return text(typeof target === 'string' ? target : target?.wx_type) || '采集对象'
+}
+
+function strategyTargets(row) {
+  const targets = Array.isArray(row.active_targets) ? row.active_targets : []
+  return row.request_type === 'month' && !targets.length && row.month ? [String(row.month)] : targets
 }
 
 function strategyRequestParameters(strategy, target, cursor) {
@@ -83,15 +95,27 @@ export function buildWxRankStrategyPlan(strategyRows = [], { maxRequests = WXRAN
 
   for (const row of strategyRows.filter(item => STRATEGY_TYPES.has(item?.request_type))) {
     const cursor = Number(row.cursor)
-    const activeTargets = Array.isArray(row.active_targets) ? row.active_targets : []
+    const activeTargets = strategyTargets(row)
     if (!Number.isSafeInteger(cursor) || cursor < 0) throw new TypeError(`strategy ${row.id} has an invalid cursor budget`)
-    const groupExpected = activeTargets.length * cursor
+    const datePages = (target, page) => (row.completed_items || []).find(item => item?.request_type === 'date' && item?.target_key === strategyTargetKey('date', target) && Number(item?.page_no) === page && ['reserved', 'success', 'failed'].includes(item?.status))
+    const dateRemainingPages = target => {
+      const pageOne = datePages(target, 1)
+      if (!pageOne) return cursor > 1 ? cursor : 1
+      if (pageOne.status !== 'success' || !hasCursor(pageOne.next_cursor)) return 0
+      return cursor > 1 && !datePages(target, 2) ? 1 : 0
+    }
+    const targetPlans = activeTargets.map(target => {
+      const completedPages = row.request_type === 'date' ? Array.from({ length: cursor }, (_, index) => index + 1).filter(page => ['success', 'failed'].includes(datePages(target, page)?.status)).length : 0
+      const reservedPages = row.request_type === 'date' ? Array.from({ length: cursor }, (_, index) => index + 1).filter(page => datePages(target, page)?.status === 'reserved').length : 0
+      return {
+        target_key: strategyTargetKey(row.request_type, target),
+        target: copy(target),
+        page_budget: cursor,
+        ...(row.request_type === 'date' ? { completed_pages: completedPages, reserved_pages: reservedPages, remaining_pages: dateRemainingPages(target) } : {})
+      }
+    })
+    const groupExpected = row.request_type === 'date' ? targetPlans.reduce((sum, item) => sum + item.remaining_pages, 0) : activeTargets.length * cursor
     expectedRequests += groupExpected
-    const targetPlans = activeTargets.map(target => ({
-      target_key: strategyTargetKey(row.request_type, target),
-      target: copy(target),
-      page_budget: cursor
-    }))
     strategies.push({
       strategy_id: row.id,
       request_type: row.request_type,
@@ -103,8 +127,11 @@ export function buildWxRankStrategyPlan(strategyRows = [], { maxRequests = WXRAN
 
     for (const target of activeTargets) {
       for (let page = 1; page <= cursor; page += 1) {
+        const savedPage = row.request_type === 'date' ? datePages(target, page) : null
+        if (savedPage) continue
         if (requestPreview.length >= previewLimit) break
-        const cursorValue = page === 1 ? undefined : '上一请求返回的 data.cursor'
+        const priorPage = page > 1 && row.request_type === 'date' ? datePages(target, page - 1) : null
+        const cursorValue = page === 1 ? undefined : (priorPage?.next_cursor ?? '上一请求返回的 data.cursor')
         requestPreview.push({
           strategy_id: row.id,
           request_type: row.request_type,
@@ -173,6 +200,7 @@ function completedTargetKey(item, requestType, cycleNo) {
   if (item?.target !== undefined) return strategyTargetKey(item.request_type || requestType, item.target)
   if (requestType === 'account' && (item?.account_id !== undefined || item?.wx_biz)) return strategyTargetKey('account', item)
   if (requestType === 'wx_type' && (item?.wx_type || item?.type)) return strategyTargetKey('wx_type', item.wx_type || item.type)
+  if (requestType === 'month' && (item?.month || item?.target)) return strategyTargetKey('month', item.month || item.target)
   return ''
 }
 
@@ -260,6 +288,11 @@ function initialStrategyResults(plan, strategyRows) {
   })
 }
 
+export function normalizeWorkflowStrategyStatus(status) {
+  if (['skipped_cursor_zero', 'skipped_no_active_targets'].includes(status)) return 'success'
+  return ['success', 'partial', 'waiting_auth'].includes(status) ? status : 'failed'
+}
+
 function safeKeyLabel(apiKey) {
   const key = text(apiKey)
   return key ? `已加载 ****${key.slice(-4)}` : '未加载'
@@ -304,14 +337,129 @@ function summarizeNextTargets(row, nextTargets) {
   }
 }
 
+function singaporeDate(value = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(value)
+  const values = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]))
+  return `${values.year}-${values.month}-${values.day}`
+}
+
+function shiftDate(date, offset) {
+  const [year, month, day] = date.split('-').map(Number)
+  const shifted = new Date(Date.UTC(year, month - 1, day + offset))
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}-${String(shifted.getUTCDate()).padStart(2, '0')}`
+}
+
+export function currentWxRankDateTargets(now = new Date()) {
+  const today = singaporeDate(now)
+  return [shiftDate(today, -1), shiftDate(today, -2)]
+}
+
+export async function ensureWxRankDateStrategy(client, { now = new Date() } = {}) {
+  const targets = currentWxRankDateTargets(now)
+  const [yesterday] = targets
+  const existing = rowsOf(await client.list('collection_strategy_groups', {
+    columns: STRATEGY_COLUMNS,
+    filters: [{ column: 'request_type', operator: 'eq', value: 'date' }],
+    order: [{ column: 'id', direction: 'asc' }],
+    limit: 10
+  }))
+  const cutoff = shiftDate(singaporeDate(now), -31)
+  const completedItems = (existing[0]?.completed_items || []).filter(item => {
+    if (item?.request_type !== 'date') return false
+    const target = String(item.target_key || '').replace(/^date:/u, '')
+    return target >= cutoff
+  })
+  const payload = {
+    request_type: 'date', source_targets: targets, active_targets: targets,
+    completed_items: completedItems, date: yesterday, month: null,
+    cursor: 2, min_read: null, max_read: null,
+    cycle_no: 1, updated_at: new Date(now).toISOString()
+  }
+  const current = existing[0]
+  if (!current) {
+    try {
+      return rowsOf(await client.insert('collection_strategy_groups', payload))[0] || payload
+    } catch (error) {
+      const raced = rowsOf(await client.list('collection_strategy_groups', {
+        columns: STRATEGY_COLUMNS,
+        filters: [{ column: 'request_type', operator: 'eq', value: 'date' }],
+        order: [{ column: 'id', direction: 'asc' }], limit: 10
+      }))[0]
+      if (!raced) throw error
+      return raced
+    }
+  }
+  const same = ['source_targets', 'active_targets', 'date', 'cursor'].every(key => stableJson(current[key] ?? null) === stableJson(payload[key] ?? null))
+  if (same && stableJson(current.completed_items || []) === stableJson(completedItems)) return current
+  const updated = await client.patch('collection_strategy_groups', [
+    { column: 'id', operator: 'eq', value: current.id },
+    { column: 'updated_at', operator: 'eq', value: current.updated_at }
+  ], payload)
+  const row = rowsOf(updated)[0]
+  if (row) return row
+  return (await client.get('collection_strategy_groups', current.id, { columns: STRATEGY_COLUMNS }))?.data || current
+}
+
+function datePageId(date, page) { return `${date}:page:${page}` }
+function pageRecord(strategy, target, page) {
+  const date = strategyTargetLabel('date', target)
+  return (strategy.completed_items || []).find(item => item?.request_type === 'date' && item?.idempotency_key === datePageId(date, page)) || null
+}
+
+async function updateDatePageCheckpoint(client, strategyId, checkpoint, { onlyIfAbsent = false } = {}) {
+  const now = new Date().toISOString()
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const current = (await client.get('collection_strategy_groups', strategyId, { columns: STRATEGY_COLUMNS }))?.data
+    if (!current) throw new Error('DATE_STRATEGY_NOT_FOUND')
+    const items = Array.isArray(current.completed_items) ? [...current.completed_items] : []
+    const index = items.findIndex(item => item?.idempotency_key === checkpoint.idempotency_key)
+    if (index >= 0 && onlyIfAbsent) return { item: items[index], claimed: false }
+    if (index >= 0 && ['success', 'failed'].includes(items[index]?.status)) return { item: items[index], claimed: false }
+    if (index >= 0) items[index] = { ...items[index], ...checkpoint }
+    else items.push(checkpoint)
+    const updated = await client.patch('collection_strategy_groups', [
+      { column: 'id', operator: 'eq', value: strategyId },
+      { column: 'updated_at', operator: 'eq', value: current.updated_at }
+    ], { completed_items: items, updated_at: now })
+    const row = rowsOf(updated)[0]
+    if (row) return { item: checkpoint, row, claimed: true }
+  }
+  const error = new Error('DATE_STRATEGY_PROGRESS_CONFLICT')
+  error.code = 'DATE_STRATEGY_PROGRESS_CONFLICT'
+  throw error
+}
+
+function datePageCachePath(date, page) {
+  return path.resolve('data', 'wxrank-date-pages', date, `page-${page}.json`)
+}
+
+async function readDatePageCache(date, page) {
+  const file = datePageCachePath(date, page)
+  if (!existsSync(file)) return null
+  try { return JSON.parse(await readFile(file, 'utf8')) } catch { return null }
+}
+
+async function writeDatePageCache(date, page, value) {
+  const file = datePageCachePath(date, page)
+  await mkdirAsync(path.dirname(file), { recursive: true })
+  const temporary = `${file}.${process.pid}.${Date.now()}.tmp`
+  await writeFileAsync(temporary, `${JSON.stringify(value)}\n`, 'utf8')
+  await rename(temporary, file)
+  return file
+}
+
 export async function executeWxRankStrategyPlan({
   strategies = [],
-  apiKey = process.env.WXRANK_API_KEY,
+  apiKey = loadCollectorEnvironment().WXRANK_API_KEY,
   endpoint = DEFAULT_ENDPOINT,
   maxRequests = WXRANK_STRATEGY_REQUEST_LIMIT,
   fetchArticleList = fetchWxRankArticleList,
   lookupWxNames = async () => new Map(),
   updateProgress,
+  reserveDatePage,
+  finishDatePage,
+  loadDatePage = readDatePageCache,
+  saveDatePage = writeDatePageCache,
   verifySnapshot,
   onPlan
 } = {}) {
@@ -358,8 +506,149 @@ export async function executeWxRankStrategyPlan({
   const resultById = new Map(strategyResults.map(item => [String(item.strategy_id), item]))
   for (const strategy of strategies.filter(row => STRATEGY_TYPES.has(row.request_type))) {
     const strategyResult = resultById.get(String(strategy.id))
+    if (strategy.request_type === 'date') {
+      const completedThisStrategy = []
+      const localLedger = Array.isArray(strategy.completed_items) ? copy(strategy.completed_items) : []
+      for (const target of strategyTargets(strategy)) {
+        const date = strategyTargetLabel('date', target)
+        const targetKey = strategyTargetKey('date', target)
+        const targetRequests = []
+        const targetArticles = []
+        let pageCursor
+        let targetComplete = false
+        let targetFailed = false
+        let targetFailure = null
+        for (let page = 1; page <= Number(strategy.cursor); page += 1) {
+          const idempotencyKey = datePageId(date, page)
+          let saved = localLedger.find(item => item?.idempotency_key === idempotencyKey)
+          if (saved) {
+            const cached = await loadDatePage(date, page)
+            if (!cached) {
+              targetFailure = { code: saved.status === 'reserved' ? 'REQUEST_OUTCOME_UNCERTAIN' : (saved.error_code || 'DATE_PAGE_ALREADY_CONSUMED'), message: '此日期页已有请求账本且无可恢复结果；为避免超额请求已跳过重试' }
+              targetFailed = true
+              targetComplete = true
+              break
+            }
+            if (cached.rows?.length) targetArticles.push(...cached.rows)
+            if (cached.rows?.length) allArticleRows.push(...cached.rows)
+            pageCursor = cached.next_cursor ?? saved.next_cursor
+            if (saved.status === 'reserved') {
+              const finalized = { ...saved, status: 'success', next_cursor: pageCursor ?? null, returned_article_count: cached.rows?.length || 0, completed_at: new Date().toISOString() }
+              const finish = await finishDatePage?.(strategy, finalized)
+              if (finish?.item) saved = finish.item
+              const index = localLedger.findIndex(item => item?.idempotency_key === idempotencyKey)
+              if (index >= 0) localLedger[index] = saved
+            }
+            if (saved.status === 'failed') {
+              targetFailed = true
+              targetFailure = { code: saved.error_code || 'WXRANK_REQUEST_FAILED', message: saved.message || '历史日期页请求失败' }
+              targetComplete = true
+              break
+            }
+            if (!hasCursor(pageCursor) || page === Number(strategy.cursor)) targetComplete = true
+            continue
+          }
+          if (page > 1 && !hasCursor(pageCursor)) {
+            targetComplete = true
+            break
+          }
+          if (requestCounter >= WXRANK_STRATEGY_REQUEST_LIMIT) {
+            targetFailure = { code: 'REQUEST_BUDGET_EXCEEDED', message: 'global WxRank request cap reached' }
+            targetFailed = true
+            break
+          }
+          const reserveItem = {
+            idempotency_key: idempotencyKey, request_type: 'date', target_key: targetKey,
+            target: copy(target), page_no: page, status: 'reserved',
+            page_cursor: pageCursor ?? null, reserved_at: new Date().toISOString()
+          }
+          const reservation = reserveDatePage
+            ? await reserveDatePage(strategy, reserveItem)
+            : { item: reserveItem, claimed: true }
+          saved = reservation?.item || reserveItem
+          if (!reservation?.claimed) {
+            const cached = await loadDatePage(date, page)
+            if (!cached) {
+              targetFailure = { code: 'DATE_PAGE_ALREADY_RESERVED', message: '另一工作流已预留此日期页；本轮不重复请求' }
+              targetFailed = true
+              targetComplete = true
+              break
+            }
+            if (cached.rows?.length) { targetArticles.push(...cached.rows); allArticleRows.push(...cached.rows) }
+            pageCursor = cached.next_cursor ?? saved.next_cursor
+            continue
+          }
+          localLedger.push(saved)
+          const request = createWxRankStrategyRequest({ requestType: 'date', strategy, target, cursor: pageCursor })
+          const parameters = strategyRequestParameters(strategy, target, pageCursor)
+          requestCounter += 1
+          let response
+          let error
+          try { response = await fetchArticleList({ apiKey, endpoint, ...request }) } catch (caught) { error = caught }
+          if (Number(response?.request_count) === 0) requestCounter -= 1
+          const callResult = actualCallResult({ strategy, target, page, pageCursor, parameters, response, error, apiKey })
+          result.requests.push(callResult)
+          targetRequests.push(callResult)
+          if (callResult.request_count > 0) {
+            requestStats.total += 1
+            const groupStats = requestStats.by_strategy.date
+            groupStats.requests += 1
+            if (callResult.status === 'success') { requestStats.success += 1; groupStats.success += 1 }
+            else { requestStats.failed += 1; groupStats.failed += 1 }
+          }
+          const responseRows = Array.isArray(response?.data?.list) ? response.data.list : []
+          const normalizedRows = responseRows.map(row => normalizeWxRankStrategyArticle(row, { requestType: 'date', target }))
+          const nextCursor = response?.data?.cursor ?? null
+          let cacheFile = null
+          try {
+            cacheFile = await saveDatePage(date, page, { rows: normalizedRows, next_cursor: nextCursor, generated_at: new Date().toISOString() })
+          } catch (cacheError) {
+            error ||= cacheError
+          }
+          if (callResult.status === 'success' && !error) {
+            targetArticles.push(...normalizedRows)
+            allArticleRows.push(...normalizedRows)
+          } else {
+            targetFailed = true
+            targetFailure = { code: callResult.error_code || error?.code || 'WXRANK_REQUEST_FAILED', message: callResult.message || error?.message || 'WxRank 日期页请求失败' }
+          }
+          const finalPage = {
+            ...reserveItem, status: targetFailed ? 'failed' : 'success',
+            next_cursor: nextCursor, request_count: callResult.request_count,
+            returned_article_count: normalizedRows.length, error_code: targetFailure?.code || null,
+            message: targetFailure?.message || null, cache_file: cacheFile || null,
+            completed_at: new Date().toISOString()
+          }
+          const finished = await finishDatePage?.(strategy, finalPage)
+          const savedFinal = finished?.item || finalPage
+          const localIndex = localLedger.findIndex(item => item?.idempotency_key === idempotencyKey)
+          if (localIndex >= 0) localLedger[localIndex] = savedFinal
+          else localLedger.push(savedFinal)
+          pageCursor = nextCursor
+          if (targetFailed || !hasCursor(pageCursor) || page === Number(strategy.cursor)) {
+            targetComplete = true
+            break
+          }
+        }
+        if (targetComplete && !targetFailed) {
+          strategyResult.completed_objects.push(copy(target))
+          strategyResult.completed_count += 1
+          completedThisStrategy.push({ target_key: targetKey, target: copy(target), request_type: 'date', status: 'success', page_count: targetRequests.length, article_count: deduplicateWxRankStrategyArticles(targetArticles).rows.length })
+        } else if (targetFailed) {
+          strategyResult.failed_objects ??= []
+          strategyResult.failed_objects.push({ target: copy(target), error_code: targetFailure?.code || 'WXRANK_REQUEST_FAILED' })
+        }
+      }
+      strategyResult.completed_items = completedThisStrategy
+      strategyResult.next_active_targets = copy(strategy.active_targets || [])
+      strategyResult.next_cursor = Number(strategy.cursor || 0)
+      strategyResult.next_expected_requests = buildWxRankStrategyPlan([{ ...strategy, completed_items: localLedger }]).expected_requests
+      strategyResult.progress_status = 'updated'
+      strategyResult.actual_requests = result.requests.filter(item => item.strategy_id === strategy.id && item.request_count > 0).length
+      continue
+    }
     const completedThisStrategy = []
-    for (const target of Array.isArray(strategy.active_targets) ? strategy.active_targets : []) {
+    for (const target of strategyTargets(strategy)) {
       const targetRequests = []
       const targetArticles = []
       const seenCursors = new Set()
@@ -593,25 +882,29 @@ export async function batchLookupWxNames(client, wxBizes) {
 function strategyConfigIssue(rows, requiredTypes = STRATEGY_TYPES) {
   const counts = Object.fromEntries([...requiredTypes].map(type => [type, rows.filter(row => row.request_type === type).length]))
   const missing = Object.entries(counts).filter(([, count]) => count !== 1).map(([type, count]) => `${type}=${count}`)
-  return missing.length ? `expected one configured strategy for each selected type; found ${missing.join(', ')}` : null
+  if (missing.length) return `expected one configured strategy for each selected type; found ${missing.join(', ')}`
+  const invalidMonth = rows.find(row => row.request_type === 'month' && !/^20\d{4}$/u.test(String(row.month || '')))
+  return invalidMonth ? `strategy ${invalidMonth.id} requires month in YYYYMM format` : null
 }
 
 export async function runWxRankStrategy({
   client,
-  apiKey = process.env.WXRANK_API_KEY,
-  endpoint = DEFAULT_ENDPOINT,
+  apiKey = loadCollectorEnvironment().WXRANK_API_KEY,
+  endpoint,
   fetchArticleList = fetchWxRankArticleList,
   requestTypes,
   onPlan
 } = {}) {
+  endpoint = endpoint || loadCollectorEnvironment().WXRANK_API_URL || DEFAULT_ENDPOINT
   const liveClient = client || createSupabaseClient({
     url: process.env.SUPABASE_URL,
     key: process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
   })
-  const strategies = await readStrategies(liveClient)
   const selectedTypes = requestTypes === undefined
-    ? [...STRATEGY_TYPES]
+    ? ['account', 'wx_type']
     : validateWxRankRequestTypes({ request_types: requestTypes }, { mode: 'workflow' })
+  if (selectedTypes.includes('date')) await ensureWxRankDateStrategy(liveClient)
+  const strategies = await readStrategies(liveClient)
   const selectedTypeSet = new Set(selectedTypes)
   const selectedStrategies = strategies.filter(row => selectedTypeSet.has(row.request_type))
   const configIssue = strategyConfigIssue(selectedStrategies, selectedTypeSet)
@@ -639,6 +932,8 @@ export async function runWxRankStrategy({
     fetchArticleList,
     lookupWxNames: bizes => batchLookupWxNames(liveClient, bizes),
     updateProgress: (strategy, next, items) => persistWxRankStrategyProgress(liveClient, strategy, next, items),
+    reserveDatePage: (strategy, item) => updateDatePageCheckpoint(liveClient, strategy.id, item, { onlyIfAbsent: true }),
+    finishDatePage: (strategy, item) => updateDatePageCheckpoint(liveClient, strategy.id, item),
     verifySnapshot: async before => strategySnapshotsMatch(before, (await readStrategies(liveClient)).filter(row => selectedTypeSet.has(row.request_type))),
     onPlan
   })
@@ -654,15 +949,15 @@ export async function runWxRankStrategy({
     completed_items: copy(row.completed_items || []),
     cursor: Number(row.cursor || 0),
     cycle_no: Number(row.cycle_no || 1),
-    next_expected_requests: (row.active_targets?.length || 0) * Number(row.cursor || 0)
+    next_expected_requests: buildWxRankStrategyPlan([row]).expected_requests
   }))
   return result
 }
 
 export async function collect(input, {
   client,
-  apiKey = process.env.WXRANK_API_KEY,
-  endpoint = DEFAULT_ENDPOINT,
+  apiKey = loadCollectorEnvironment().WXRANK_API_KEY,
+  endpoint,
   fetchArticleList = fetchWxRankArticleList,
   artifactWriter = writeArtifact
 } = {}) {
@@ -694,7 +989,8 @@ export async function collect(input, {
     throw error
   }
 
-  const target = Array.isArray(selected.active_targets) ? selected.active_targets[0] : null
+  const target = (Array.isArray(selected.active_targets) ? selected.active_targets[0] : null)
+    ?? (requestType === 'month' ? selected.month : null)
   const cursor = Number(selected.cursor)
   if (!Number.isSafeInteger(cursor) || cursor < 0) {
     const error = new TypeError(`strategy ${selected.id} has an invalid cursor`)
@@ -783,7 +1079,8 @@ async function formatCollectorResult(result, input, { started, requestTypes, art
   const outputCount = result.articles.length
   const requestCount = result.request_stats.total
   const returnedArticleCount = result.requests.reduce((count, request) => count + (Number(request.returned_article_count) || 0), 0)
-  const status = ['success', 'partial', 'waiting_auth'].includes(result.status) ? result.status : 'failed'
+  const status = normalizeWorkflowStrategyStatus(result.status)
+  const noWork = ['skipped_cursor_zero', 'skipped_no_active_targets'].includes(result.status)
   let artifact = null
   if (status === 'success' || status === 'partial') {
     artifact = await artifactWriter(input.workdir, 'wxrank-strategy-articles.json', {
@@ -809,7 +1106,7 @@ async function formatCollectorResult(result, input, { started, requestTypes, art
     duration_ms: Date.now() - started,
     artifact,
     ...(status === 'failed' ? { error_code: result.requests[0]?.error_code || result.warnings[0]?.code || 'WXRANK_REQUEST_FAILED' } : {}),
-    message: status === 'success' ? message : (result.requests[0]?.message || result.warnings[0]?.message || result.status),
+    message: status === 'success' ? (noWork ? '策略没有待采集对象，本轮未发送请求' : message) : (result.requests[0]?.message || result.warnings[0]?.message || result.status),
     business_summary: {
       request_types: requestTypes,
       request_plan: result.request_plan,

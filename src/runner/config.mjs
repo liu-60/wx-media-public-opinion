@@ -17,7 +17,8 @@ function merge(left, right) {
 
 export const DEFAULT_RUN_OVERRIDE_KEYS = Object.freeze([
   'publish_mode', 'run_date', 'target_date', 'start_date', 'end_date', 'stat_date', 'request_type', 'request_types', 'lookback_days', 'range', 'base_url', 'request_budget',
-  'page_budget', 'max_requests', 'max_hotwords', 'min_platform_count', 'merge_consistency_threshold', 'merge_min_article_count', 'title_overlap_threshold', 'min_article_count', 'stage', 'output_name', 'category_url', 'wechat_node_url', 'wechat_platform', 'plans', 'strategy', 'source', 'publish_only', 'publish_artifact_run_id', 'publish_artifact_id', 'publish_write_set_hash', 'input_artifacts'
+  'page_budget', 'max_requests', 'max_hotwords', 'max_total_requests', 'max_requests_per_hotword', 'min_platform_count', 'merge_consistency_threshold', 'merge_min_article_count', 'title_overlap_threshold', 'min_article_count', 'stage', 'output_name', 'category_url', 'wechat_node_url', 'wechat_platform', 'plans', 'strategy', 'source', 'publish_only', 'publish_artifact_run_id', 'publish_artifact_id', 'publish_write_set_hash', 'input_artifacts',
+  'search_mode', 'manual_hotwords', 'hotwords', 'manual_platforms', 'wxrank_sort_type', 'redfox_sort_type', 'redfox_exact_match', 'min_rising_article_count', 'min_rising_count', 'min_growth_rate'
 ])
 
 export function mergeCollectorConfig({ scriptDefault = {}, stepOverride = {}, runOverride = {} } = {}) {

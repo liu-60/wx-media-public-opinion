@@ -4,10 +4,10 @@ const TABLES = Object.freeze({
   collection_workflows: Object.freeze({ primaryKey: 'id', columns: new Set(['id', 'name', 'enabled', 'system_generated', 'validation_only', 'revision', 'default_config', 'retention_config', 'created_at', 'updated_at']) }),
   collection_workflow_steps: Object.freeze({ primaryKey: 'id', columns: new Set(['id', 'workflow_id', 'script_id', 'step_key', 'seq', 'enabled', 'config_override', 'condition', 'continue_on_error', 'retry_count', 'timeout_seconds', 'created_at', 'updated_at']) }),
   collection_runs: Object.freeze({ primaryKey: 'id', columns: new Set(['id', 'workflow_id', 'run_kind', 'script_id', 'workflow_snapshot', 'status', 'config_snapshot', 'rule_snapshot', 'strategy_snapshot', 'started_at', 'finished_at', 'summary', 'parent_run_id', 'worker_id', 'lease_until', 'heartbeat_at', 'publish_status', 'artifact_manifest', 'retention_until', 'pinned', 'created_at', 'updated_at']) }),
-  collection_step_runs: Object.freeze({ primaryKey: 'id', columns: new Set(['id', 'run_id', 'step_key', 'script_snapshot', 'attempt', 'status', 'started_at', 'finished_at', 'duration_ms', 'input_count', 'output_count', 'created_count', 'updated_count', 'filtered_count', 'request_count', 'error_code', 'error_message', 'checkpoint', 'artifact_manifest', 'log_ref', 'input_hash', 'created_at', 'updated_at']) })
+  collection_step_runs: Object.freeze({ primaryKey: 'id', columns: new Set(['id', 'run_id', 'workflow_run_id', 'step_id', 'script_id', 'step_key', 'script_snapshot', 'attempt', 'status', 'started_at', 'finished_at', 'duration_ms', 'input_count', 'output_count', 'created_count', 'updated_count', 'filtered_count', 'request_count', 'error_code', 'error_message', 'checkpoint', 'summary', 'artifact_manifest', 'log_ref', 'input_hash', 'created_at', 'updated_at']) })
 })
-const RPC_NAMES = new Set(['create_collection_run', 'create_collection_script_run', 'claim_collection_run', 'claim_collection_run_by_id', 'heartbeat_collection_run', 'reorder_collection_workflow_steps'])
-const OPERATORS = new Set(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'is', 'not.is', 'in'])
+const RPC_NAMES = new Set(['create_collection_run', 'create_collection_run_from_step', 'create_collection_script_run', 'claim_collection_run', 'claim_collection_run_by_id', 'heartbeat_collection_run', 'reorder_collection_workflow_steps'])
+const OPERATORS = new Set(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'is', 'not.is', 'in', 'cs'])
 
 export class CollectionDbError extends Error {
   constructor(code, status = 503, message = code) { super(`${code}: ${message}`); this.name = 'CollectionDbError'; this.code = code; this.status = status }
@@ -53,6 +53,10 @@ function normalizeFilters(table, filters = [], { require = false } = {}) {
   if (!Array.isArray(filters) || (require && !filters.length)) throw new CollectionDbError('INVALID_FILTER', 400)
   return filters.map(filter => {
     if (!filter || !info.columns.has(filter.column) || !OPERATORS.has(filter.operator) || filter.value === undefined) throw new CollectionDbError('INVALID_FILTER', 400)
+    if (filter.operator === 'cs') {
+      if (!JSON_COLUMNS.has(filter.column) || !filter.value || typeof filter.value !== 'object' || Array.isArray(filter.value)) throw new CollectionDbError('INVALID_FILTER', 400)
+      return { column: filter.column, value: JSON.stringify(filter.value), operator: filter.operator }
+    }
     if (filter.operator === 'in') {
       if (!Array.isArray(filter.value) || !filter.value.length || filter.value.some(item => item === null || item === undefined || /[\r\n(),]/u.test(String(item)))) throw new CollectionDbError('INVALID_FILTER', 400)
       return { column: filter.column, value: `(${filter.value.map(item => String(item)).join(',')})`, operator: filter.operator }

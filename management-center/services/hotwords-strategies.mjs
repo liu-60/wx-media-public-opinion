@@ -1,7 +1,9 @@
 import { ConfigValidationError } from './config-validation.mjs'
 import { canonicalHotwordMerge, mergeHotwordRow } from '../../src/hotwords.mjs'
+import { buildNextRequestPreviewModel } from '../public/strategy-ui.mjs'
 
-const HOTWORD_COLUMNS = Object.freeze(['id', 'hotword', 'aliases', 'stat_date', 'article_count', 'article_keys', 'article_url'])
+const HOTWORD_COLUMNS = Object.freeze(['id', 'hotword', 'aliases', 'stat_date', 'article_count', 'article_keys', 'article_url', 'platform_count', 'source_platforms', 'is_rising', 'growth_rate', 'trend_state', 'trend_score', 'consecutive_days', 'daily_growth', 'quality_valid', 'quality_type', 'quality_confidence', 'quality_reason', 'quality_checked_at', 'updated_at'])
+const HOTWORD_SORT_FIELDS = new Set(['hotword', 'article_count', 'platform_count', 'growth_rate', 'trend_score', 'stat_date', 'updated_at'])
 const STRATEGY_COLUMNS = Object.freeze(['id', 'request_type', 'source_targets', 'active_targets', 'completed_items', 'date', 'month', 'cursor', 'min_read', 'max_read', 'cycle_no', 'updated_at'])
 const HOTWORD_SNAPSHOT_COLUMNS = Object.freeze([...HOTWORD_COLUMNS])
 const STRATEGY_CONFIG_COLUMNS = Object.freeze(['request_type', 'source_targets', 'active_targets', 'date', 'month', 'cursor', 'min_read', 'max_read'])
@@ -231,7 +233,20 @@ function requireTimestamp(value) {
 
 function strategyDto(row) {
   const item = Object.fromEntries(STRATEGY_COLUMNS.map(column => [column, clone(row[column])]))
-  item.expected_requests = (item.active_targets?.length ?? 0) * item.cursor
+  const preview = buildNextRequestPreviewModel({
+    requestType: item.request_type,
+    activeTargets: item.active_targets || [],
+    date: item.date,
+    month: item.month,
+    minRead: item.min_read,
+    maxRead: item.max_read,
+    cursor: item.cursor,
+    cycleNo: item.cycle_no,
+    completedItems: item.completed_items || []
+  })
+  item.expected_requests = preview.expectedRequests
+  item.completed_requests = preview.completedRequests
+  item.next_request = preview.nextRequest
   item.capability = clone(EXECUTION_CAPABILITY)
   return item
 }
@@ -284,11 +299,18 @@ export function createHotwordsStrategiesService({ client, now = () => new Date()
     const filters = []
     if (input.statDate !== undefined && input.statDate !== null && input.statDate !== '') filters.push({ column: 'stat_date', operator: 'eq', value: validDate(input.statDate, true) })
     const keyword = input.keyword === undefined || input.keyword === null || input.keyword === '' ? undefined : requiredText(input.keyword, 50)
+    const sort = HOTWORD_SORT_FIELDS.has(input.sort) ? input.sort : 'stat_date'
+    const direction = input.sortDir === 'asc' ? 'asc' : 'desc'
+    const order = [
+      { column: sort, direction, nulls: 'last' },
+      ...(sort === 'stat_date' ? [] : [{ column: 'stat_date', direction: 'desc', nulls: 'last' }]),
+      { column: 'id', direction: 'desc' }
+    ]
     const result = await client.list('hotwords', {
       columns: HOTWORD_COLUMNS,
       filters,
       search: keyword ? { columns: ['hotword'], value: keyword } : undefined,
-      order: [{ column: 'stat_date', direction: 'desc' }, { column: 'id', direction: 'desc' }],
+      order,
       limit: pageSize,
       offset,
       count: 'exact'
@@ -312,6 +334,66 @@ export function createHotwordsStrategiesService({ client, now = () => new Date()
 
   async function getHotword(id) {
     return { item: clone(await readHotword(id)) }
+  }
+
+  async function listHotwordHistory(id, input = {}) {
+    const current = await readHotword(id)
+    const { page, pageSize, offset } = parsePage(input)
+    const result = await client.list('hotwords', {
+      columns: HOTWORD_COLUMNS,
+      filters: [{ column: 'hotword', operator: 'eq', value: current.hotword }],
+      order: [
+        { column: 'stat_date', direction: 'asc', nulls: 'last' },
+        { column: 'id', direction: 'asc' }
+      ],
+      limit: pageSize,
+      offset,
+      count: 'exact'
+    })
+    return { hotword: current.hotword, items: rowsOf(result).map(clone), total: result.total ?? null, page, pageSize }
+  }
+
+  async function listHotwordArticles(id, input = {}) {
+    const hotwordId = positiveId(id)
+    const { page, pageSize, offset } = parsePage(input)
+    const filters = [{ column: 'hotword_id', operator: 'eq', value: hotwordId }]
+    if (input.statDate) filters.push({ column: 'stat_date', operator: 'eq', value: validDate(input.statDate, true) })
+    const result = await client.list('hotword_articles', { columns: ['id', 'hotword_id', 'article_id', 'article_key', 'stat_date', 'source_platforms', 'matched_terms', 'created_at', 'updated_at'], filters, order: [{ column: 'stat_date', direction: 'desc' }, { column: 'article_key', direction: 'asc' }], limit: pageSize, offset, count: 'exact' })
+    const relations = rowsOf(result)
+    const articleIds = [...new Set(relations.map(row => Number(row.article_id)).filter(Number.isSafeInteger))]
+    const articleKeys = [...new Set(relations.map(row => typeof row.article_key === 'string' ? row.article_key.trim() : '').filter(Boolean))]
+    const articleMap = new Map()
+    const articleMapByKey = new Map()
+    for (let index = 0; index < articleIds.length; index += 1_000) {
+      const batch = articleIds.slice(index, index + 1_000)
+      const articles = await client.list('articles', { columns: ['id', 'article_key', 'account_id', 'article_sn', 'idx', 'title', 'article_url', 'published_at', 'read_num', 'like_num'], relations: [{ table: 'accounts', columns: ['wx_biz', 'wx_name'] }], filters: [{ column: 'id', operator: 'in', value: batch }], limit: batch.length })
+      for (const article of rowsOf(articles)) {
+        articleMap.set(Number(article.id), article)
+        if (article.article_key) articleMapByKey.set(String(article.article_key), article)
+      }
+    }
+    for (let index = 0; index < articleKeys.length; index += 1_000) {
+      const batch = articleKeys.slice(index, index + 1_000)
+      const articles = await client.list('articles', { columns: ['id', 'article_key', 'account_id', 'article_sn', 'idx', 'title', 'article_url', 'published_at', 'read_num', 'like_num'], relations: [{ table: 'accounts', columns: ['wx_biz', 'wx_name'] }], filters: [{ column: 'article_key', operator: 'in', value: batch }], limit: batch.length })
+      for (const article of rowsOf(articles)) {
+        articleMap.set(Number(article.id), article)
+        if (article.article_key) articleMapByKey.set(String(article.article_key), article)
+      }
+    }
+    return { items: relations.map(row => ({ ...row, article: articleMap.get(Number(row.article_id)) || articleMapByKey.get(String(row.article_key || '')) || null })), total: result.total ?? null, page, pageSize }
+  }
+
+  async function listArticleHotwords(articleKeyValue) {
+    const articleKey = requiredText(articleKeyValue, 1_000, 'INVALID_ARTICLE_KEY')
+    const relationResult = await client.list('hotword_articles', { columns: ['id', 'hotword_id', 'article_id', 'article_key', 'stat_date', 'source_platforms', 'matched_terms', 'created_at', 'updated_at'], filters: [{ column: 'article_key', operator: 'eq', value: articleKey }], order: [{ column: 'stat_date', direction: 'desc' }], limit: 1_000 })
+    const relations = rowsOf(relationResult)
+    const ids = [...new Set(relations.map(row => Number(row.hotword_id)).filter(Number.isSafeInteger))]
+    const byId = new Map()
+    for (let index = 0; index < ids.length; index += 1_000) {
+      const result = await client.list('hotwords', { columns: HOTWORD_COLUMNS, filters: [{ column: 'id', operator: 'in', value: ids.slice(index, index + 1_000) }], limit: 1_000 })
+      for (const row of rowsOf(result)) byId.set(Number(row.id), row)
+    }
+    return { article_key: articleKey, items: relations.map(row => ({ ...row, hotword: byId.get(Number(row.hotword_id)) || null })) }
   }
 
   async function updateHotword(id, input = {}) {
@@ -529,6 +611,9 @@ export function createHotwordsStrategiesService({ client, now = () => new Date()
     listHotwords,
     listStrategyKeywords,
     getHotword,
+    listHotwordHistory,
+    listHotwordArticles,
+    listArticleHotwords,
     updateHotword,
     deleteHotword,
     mergePreview,

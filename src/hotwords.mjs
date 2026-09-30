@@ -2,7 +2,12 @@ import { nowIso } from './db.mjs'
 
 const HAN_RUN = /[\p{Script=Han}]+/gu
 const ENGLISH_WORD = /[A-Za-z][A-Za-z0-9]*/gu
-const DEFAULT_STOP_WORDS = Object.freeze(['我们', '你们', '他们', '这个', '那个', '什么', '如何', '一个', '可以', '以及', '因为', '已经'])
+const DEFAULT_STOP_WORDS = Object.freeze([
+  '我们', '你们', '他们', '这个', '那个', '什么', '如何', '一个', '可以', '以及', '因为', '已经',
+  '于是', '第一', '不会', '觉得', '这是', '不是', '没有', '怎么', '为什么', '现在', '今天', '昨天',
+  '表示', '认为', '进行', '相关', '网友', '大家', '记者', '消息', '关注', '文章', '视频', '内容',
+  '起来', '出来', '一下', '一些', '时候', '可能', '应该', '需要', '发现', '看到', '发生', '通过'
+])
 export const DEFAULT_CANONICAL_HOTWORD_RULES = Object.freeze([
   Object.freeze({ canonical: '闲鱼', match_type: 'prefix', protected: true })
 ])
@@ -430,14 +435,41 @@ export function mergeSimilarHotwordRows(rows = [], {
     .map((row, index) => ({ row, index, normalizedWord: normalizeMergeWord(row?.word ?? row?.hotword), evidence: rowEvidence(row) }))
     .sort((left, right) => numericOrZero(right.row?.article_count) - numericOrZero(left.row?.article_count) || right.normalizedWord.length - left.normalizedWord.length || numericOrZero(right.row?.score) - numericOrZero(left.row?.score) || left.index - right.index)
   const clusters = []
+  const scopes = new Map()
+  const indexCandidate = (scope, normalizedWord, cluster) => {
+    const word = [...normalizedWord]
+    if (word.length < 2) return
+    if (!scope.byWord.has(normalizedWord)) scope.byWord.set(normalizedWord, cluster)
+    for (let start = 0; start < word.length - 1; start += 1) {
+      for (let end = start + 2; end <= word.length; end += 1) {
+        const fragment = word.slice(start, end).join('')
+        const containers = scope.containersBySubstring.get(fragment) || new Set()
+        containers.add(cluster)
+        scope.containersBySubstring.set(fragment, containers)
+      }
+    }
+  }
 
   for (const candidate of ordered) {
     const statDate = text(candidate.row?.stat_date)
     const tokenType = text(candidate.row?.token_type || candidate.row?.tokenType)
+    const scopeKey = `${statDate}\u0000${tokenType}`
+    let scope = scopes.get(scopeKey)
+    if (!scope) {
+      scope = { clusters: [], byWord: new Map(), containersBySubstring: new Map() }
+      scopes.set(scopeKey, scope)
+    }
+    const possibleClusters = new Set(scope.containersBySubstring.get(candidate.normalizedWord) || [])
+    const candidateWord = [...candidate.normalizedWord]
+    for (let start = 0; start < candidateWord.length - 1; start += 1) {
+      for (let end = start + 2; end <= candidateWord.length; end += 1) {
+        const priorShorter = scope.byWord.get(candidateWord.slice(start, end).join(''))
+        if (priorShorter) possibleClusters.add(priorShorter)
+      }
+    }
     let matchedMember = null
-    const cluster = clusters.find(item => {
-      if (text(item.representative.row?.stat_date) !== statDate) return false
-      if (text(item.representative.row?.token_type || item.representative.row?.tokenType) !== tokenType) return false
+    let cluster = null
+    for (const item of [...possibleClusters].sort((left, right) => left.order - right.order)) {
       const member = item.members.find(existing => {
         if (!mergeWordsCompatible(existing.normalizedWord, candidate.normalizedWord)) return false
         if (existing.normalizedWord === candidate.normalizedWord) return true
@@ -449,19 +481,24 @@ export function mergeSimilarHotwordRows(rows = [], {
         if (evidenceIntersectionCount(existing.evidence, candidate.evidence) < minimumCrossArticleCount) return false
         return evidenceConsistencyForWords(candidate.normalizedWord, candidate.evidence, existing.normalizedWord, existing.evidence) >= threshold
       })
-      if (!member) return false
+      if (!member) continue
       matchedMember = member
-      return true
-    })
+      cluster = item
+      break
+    }
     if (cluster) {
       cluster.members.push(candidate)
       for (const value of candidate.evidence) cluster.evidence.add(value)
       if (matchedMember && matchedMember.normalizedWord !== candidate.normalizedWord) {
         cluster.consistencies.push(evidenceConsistencyForWords(candidate.normalizedWord, candidate.evidence, matchedMember.normalizedWord, matchedMember.evidence))
       }
+      indexCandidate(scope, candidate.normalizedWord, cluster)
       continue
     }
-    clusters.push({ representative: candidate, members: [candidate], evidence: new Set(candidate.evidence), consistencies: [] })
+    const created = { representative: candidate, members: [candidate], evidence: new Set(candidate.evidence), consistencies: [], order: clusters.length }
+    clusters.push(created)
+    scope.clusters.push(created)
+    indexCandidate(scope, candidate.normalizedWord, created)
   }
 
   const mergedRows = clusters.map(cluster => {

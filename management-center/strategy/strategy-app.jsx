@@ -203,10 +203,12 @@ const StrategyCard = memo(function StrategyCard({ item, config, accountOptions, 
       <Typography.Text className="strategy-schedule-text">{scheduleText(item)}</Typography.Text>
       {model.targetCount > 0 ? <AvatarTargets targets={model.visibleTargets} hiddenCount={model.hiddenTargetCount} targetUnit={model.targetUnit} /> : <Typography.Text type="secondary">{scheduleText(item)}</Typography.Text>}
       <Divider className="strategy-card-divider" />
-      <Descriptions size="small" column={{ xs: 2, sm: 4 }} colon={false} className="strategy-descriptions">
+      <Descriptions size="small" column={{ xs: 2, sm: 5 }} colon={false} className="strategy-descriptions">
         <Descriptions.Item label="阅读量"><Typography.Text strong>{model.readingRange}</Typography.Text></Descriptions.Item>
         <Descriptions.Item label="请求页数"><Typography.Text strong>{model.pagesLabel}</Typography.Text></Descriptions.Item>
         <Descriptions.Item label="预计请求"><Typography.Text strong>{model.expectedRequestsLabel}</Typography.Text></Descriptions.Item>
+        {item.request_type === 'date' ? <Descriptions.Item label="已完成"><Typography.Text strong>{model.completedRequestsLabel}</Typography.Text></Descriptions.Item> : null}
+        {item.request_type === 'date' ? <Descriptions.Item label="下次请求"><Typography.Text strong>{model.nextRequest}</Typography.Text></Descriptions.Item> : null}
         <Descriptions.Item label="当前轮次"><Typography.Text strong>{model.cycleLabel}</Typography.Text></Descriptions.Item>
       </Descriptions>
       <Typography.Text type="secondary" className="strategy-updated">更新时间 {model.updatedAtLabel}</Typography.Text>

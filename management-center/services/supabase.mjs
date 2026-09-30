@@ -3,13 +3,14 @@ import { ConfigValidationError, createConfigValidation } from './config-validati
 const TABLES = Object.freeze({
   accounts: Object.freeze({ primaryKey: 'account_id', columns: new Set(['account_id', 'wx_biz', 'wx_name', 'verify', 'description', 'decision_status', 'decision_source', 'read_median', 'read_max', 'filter_rule_id', 'updated_at']) }),
   account_profiles: Object.freeze({ primaryKey: 'account_id', columns: new Set(['account_id', 'wx_user', 'avatar', 'wx_type', 'region', 'tags', 'last_pub_time', 'pub_count', 'active_days', 'read_avg', 'read_median', 'read_max', 'burst_count', 'burst_rate', 'look_avg', 'look_median', 'look_max', 'like_avg', 'like_median', 'like_max', 'share_avg', 'share_median', 'share_max', 'comment_avg', 'comment_median', 'comment_max', 'ori_count', 'manual_tags', 'collected_at']) }),
-  articles: Object.freeze({ primaryKey: 'id', columns: new Set(['id', 'account_id', 'article_sn', 'idx', 'title', 'article_url', 'published_at', 'read_num', 'read_num_capped', 'like_num', 'look_num', 'share_num', 'comment_num', 'is_original', 'source_code', 'updated_at']) }),
+  articles: Object.freeze({ primaryKey: 'id', columns: new Set(['id', 'account_id', 'article_key', 'article_sn', 'idx', 'title', 'article_url', 'published_at', 'read_num', 'read_num_capped', 'like_num', 'look_num', 'share_num', 'comment_num', 'is_original', 'source_code', 'updated_at']) }),
   filter_rules: Object.freeze({ primaryKey: 'id', columns: new Set(['id', 'scope', 'field_name', 'operator', 'value_text', 'value_number', 'enabled', 'hit_count', 'remark', 'created_at', 'updated_at']) }),
-  hotwords: Object.freeze({ primaryKey: 'id', columns: new Set(['id', 'hotword', 'aliases', 'stat_date', 'article_count', 'article_keys', 'article_url']) }),
+  hotwords: Object.freeze({ primaryKey: 'id', columns: new Set(['id', 'hotword', 'aliases', 'stat_date', 'article_count', 'article_keys', 'article_url', 'platform_count', 'source_platforms', 'is_rising', 'growth_rate', 'trend_state', 'trend_score', 'consecutive_days', 'daily_growth', 'quality_valid', 'quality_type', 'quality_confidence', 'quality_reason', 'quality_checked_at', 'updated_at']) }),
+  hotword_articles: Object.freeze({ primaryKey: 'id', columns: new Set(['id', 'hotword_id', 'article_id', 'article_key', 'stat_date', 'source_platforms', 'matched_terms', 'created_at', 'updated_at']) }),
   collection_strategy_groups: Object.freeze({ primaryKey: 'id', columns: new Set(['id', 'request_type', 'source_targets', 'active_targets', 'completed_items', 'date', 'month', 'cursor', 'min_read', 'max_read', 'cycle_no', 'updated_at']) })
 })
 const RELATIONS = Object.freeze({
-  accounts: Object.freeze({ account_profiles: 'account_profiles' }),
+  accounts: Object.freeze({ account_profiles: 'account_profiles', articles: 'articles' }),
   articles: Object.freeze({ accounts: 'accounts' })
 })
 const MUTATING_METHODS = new Set(['POST', 'PATCH', 'DELETE'])
@@ -71,8 +72,18 @@ function normalizeRelation(table, relation) {
   const relationInfo = TABLES[relation.table]
   const columns = validateColumns(relationInfo, relation.columns)
   const filters = normalizeFilters(relation.table, relationInfo, relation.filters)
+  const order = normalizeOrder(relation.table, relationInfo, relation.order)
+  const limit = relation.limit === undefined ? undefined : createConfigValidation().integer(relation.limit, { min: 1, max: 5_000, required: true })
   const presence = relation.presence === undefined ? undefined : relation.presence === 'exists' || relation.presence === 'missing' ? relation.presence : (() => { throw new ConfigValidationError('INVALID_RELATION') })()
-  return { table: relation.table, columns, filters, presence, join: relation.join === 'inner' ? 'inner' : 'left' }
+  return {
+    table: relation.table,
+    columns,
+    filters,
+    ...(order.length ? { order } : {}),
+    ...(limit === undefined ? {} : { limit }),
+    presence,
+    join: relation.join === 'inner' ? 'inner' : 'left'
+  }
 }
 
 function normalizeRelations(table, relations) {
@@ -130,7 +141,7 @@ function quotePostgresArrayItem(value) {
 
 export function serializeSupabaseValue(table, column, value) {
   if (value === null) return null
-  if ((table === 'hotwords' && ['aliases', 'article_keys'].includes(column))) {
+  if ((table === 'hotwords' && ['aliases', 'article_keys', 'source_platforms'].includes(column)) || (table === 'hotword_articles' && ['source_platforms', 'matched_terms'].includes(column))) {
     if (!Array.isArray(value)) throw new ConfigValidationError('INVALID_FILTER')
     return `{${value.map(quotePostgresArrayItem).join(',')}}`
   }
@@ -147,10 +158,11 @@ export function createSupabaseClient({ url, key, fetchImpl = globalThis.fetch, t
   const timeout = createConfigValidation().integer(timeoutMs, { min: 1, max: 120_000, required: true })
   const baseUrl = `${url.replace(/\/+$/u, '')}/rest/v1`
 
-  async function request(table, { method = 'GET', columns, filters, relations, search, order, payload, limit, offset, count = false } = {}) {
+  async function request(table, { method = 'GET', columns, filters, relations, search, order, payload, limit, offset, count = false, onConflict } = {}) {
     const tableInfo = validateTable(table)
     const normalizedMethod = String(method).toUpperCase()
     if (!['GET', ...MUTATING_METHODS].includes(normalizedMethod)) throw new ConfigValidationError('INVALID_METHOD')
+    if (onConflict && String(onConflict).split(',').some(column => !tableInfo.columns.has(column.trim()))) throw new ConfigValidationError('INVALID_COLUMN')
     const selectedColumns = normalizedMethod === 'GET' ? validateColumns(tableInfo, columns) : undefined
     const normalizedFilters = normalizeFilters(table, tableInfo, filters)
     const normalizedRelations = normalizedMethod === 'GET' ? normalizeRelations(table, relations) : []
@@ -159,6 +171,7 @@ export function createSupabaseClient({ url, key, fetchImpl = globalThis.fetch, t
     const normalizedPayload = normalizedMethod === 'POST' ? normalizePayload(tableInfo, payload, { allowRows: true }) : normalizedMethod === 'PATCH' ? normalizePayload(tableInfo, payload) : undefined
     if ((normalizedMethod === 'PATCH' || normalizedMethod === 'DELETE') && !normalizedFilters.length) throw new ConfigValidationError('INVALID_FILTER')
     const query = new URLSearchParams()
+    if (onConflict) query.set('on_conflict', String(onConflict))
     if (selectedColumns) {
       const relationSelections = normalizedRelations.map(relation => `${relation.table}${relation.join === 'inner' ? '!inner' : ''}(${relation.columns.join(',')})`)
       query.set('select', [...selectedColumns, ...relationSelections].join(','))
@@ -180,11 +193,19 @@ export function createSupabaseClient({ url, key, fetchImpl = globalThis.fetch, t
         query.set(`${relation.table}.and`, `(${relation.filters.map(filter => `${filter.column}.${filter.operator}.${filter.value}`).join(',')})`)
       }
     }
+    for (const relation of normalizedRelations) {
+      if (relation.order?.length) query.set(`${relation.table}.order`, relation.order.map(item => `${item.relation ? `${item.relation}(${item.column})` : item.column}.${item.direction}${item.nulls ? `.nulls${item.nulls}` : ''}`).join(','))
+      if (relation.limit !== undefined) query.set(`${relation.table}.limit`, String(relation.limit))
+    }
     if (normalizedOrder.length) query.set('order', normalizedOrder.map(item => `${item.relation ? `${item.relation}(${item.column})` : item.column}.${item.direction}${item.nulls ? `.nulls${item.nulls}` : ''}`).join(','))
     if (limit !== undefined) query.set('limit', String(createConfigValidation().integer(limit, { min: 1, max: 5_000, required: true })))
     if (offset !== undefined) query.set('offset', String(createConfigValidation().integer(offset, { min: 0, max: Number.MAX_SAFE_INTEGER, required: true })))
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeout)
+    const preferences = []
+    if (count === 'exact') preferences.push('count=exact')
+    if (normalizedMethod === 'POST' && onConflict) preferences.push('resolution=merge-duplicates')
+    if (normalizedPayload !== undefined || normalizedMethod === 'DELETE') preferences.push('return=representation')
     try {
       const response = await fetchImpl(`${baseUrl}/${table}?${query.toString()}`, {
         method: normalizedMethod,
@@ -192,8 +213,8 @@ export function createSupabaseClient({ url, key, fetchImpl = globalThis.fetch, t
           apikey: key,
           Authorization: `Bearer ${key}`,
           Accept: 'application/json',
-          ...(count === 'exact' ? { Prefer: 'count=exact' } : {}),
-          ...(normalizedPayload === undefined && normalizedMethod !== 'DELETE' ? {} : { 'Content-Type': normalizedPayload === undefined ? 'application/json' : 'application/json', Prefer: 'return=representation' })
+          ...(preferences.length ? { Prefer: preferences.join(',') } : {}),
+          ...(normalizedPayload === undefined && normalizedMethod !== 'DELETE' ? {} : { 'Content-Type': 'application/json' })
         },
         ...(normalizedPayload === undefined ? {} : { body: JSON.stringify(normalizedPayload) }),
         signal: controller.signal
@@ -231,6 +252,7 @@ export function createSupabaseClient({ url, key, fetchImpl = globalThis.fetch, t
       return { ...result, data: row }
     },
     insert: async (table, rows) => request(table, { method: 'POST', payload: rows }),
+    upsert: async (table, rows, { onConflict } = {}) => request(table, { method: 'POST', payload: rows, onConflict }),
     patch: async (table, filters, payload) => request(table, { method: 'PATCH', filters, payload }),
     remove: async (table, filters) => request(table, { method: 'DELETE', filters }),
     summary: async () => Object.fromEntries(await Promise.all(Object.entries(TABLES).map(async ([table, info]) => {

@@ -108,12 +108,12 @@ export function createRunStore({ db, client = null, workerId = `worker-${process
     async finishRun(id, status, summary = {}) { return updateRun(id, { status: safeStatus(status), summary, finished_at: iso(now), lease_until: null, heartbeat_at: iso(now) }) },
     async markInterrupted(id, reason = 'lease_lost') { return updateRun(id, { status: 'interrupted', summary: { recovery: reason }, finished_at: iso(now), lease_until: null }) },
     async markStartFailed(id, message = 'worker_start_failed') { return updateRun(id, { status: 'failed', summary: { recovery: 'worker_start_failed', error_code: 'WORKER_START_FAILED', error_message: message }, finished_at: iso(now), lease_until: null }) },
-    async createStepRun({ runId, stepKey, scriptSnapshot = {}, attempt = 1, status = 'running', inputHash = null } = {}) {
+    async createStepRun({ runId, workflowRunId = runId, stepId = null, scriptId = null, stepKey, scriptSnapshot = {}, attempt = 1, status = 'running', inputHash = null } = {}) {
       const id = crypto.randomUUID()
       const created = iso(now)
       const started = status === 'running' ? created : null
-      db.prepare(`INSERT INTO collection_step_runs(id,run_id,step_key,script_snapshot,attempt,status,started_at,input_hash,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?)`).run(id, runId, stepKey, json(scriptSnapshot), attempt, status, started, inputHash, created, created)
+      db.prepare(`INSERT INTO collection_step_runs(id,run_id,workflow_run_id,step_id,script_id,step_key,script_snapshot,attempt,status,started_at,input_hash,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, runId, workflowRunId, stepId, scriptId, stepKey, json(scriptSnapshot), attempt, status, started, inputHash, created, created)
       return parseRow(db.prepare('SELECT * FROM collection_step_runs WHERE id=?').get(id))
     },
     async finishStepRun(id, patch = {}) {
@@ -154,9 +154,9 @@ function createRemoteRunStore({ client, workerId, now }) {
     async markInterrupted(id, reason) { return this.finishRun(id, 'interrupted', { recovery: reason }) },
     async markStartFailed(id, message = 'worker_start_failed') { return this.finishRun(id, 'failed', { recovery: 'worker_start_failed', error_code: 'WORKER_START_FAILED', error_message: message }) },
     async recoverExpiredRuns() { return 0 },
-    async createStepRun({ runId, stepKey, scriptSnapshot = {}, attempt = 1, status = 'running', inputHash = null } = {}) {
+    async createStepRun({ runId, workflowRunId = runId, stepId = null, scriptId = null, stepKey, scriptSnapshot = {}, attempt = 1, status = 'running', inputHash = null } = {}) {
       const created = now()
-      const result = await client.insert('collection_step_runs', { run_id: runId, step_key: stepKey, script_snapshot: scriptSnapshot, attempt, status, started_at: status === 'running' ? created : null, input_hash: inputHash, created_at: created, updated_at: created })
+      const result = await client.insert('collection_step_runs', { run_id: runId, workflow_run_id: workflowRunId, step_id: stepId, script_id: scriptId, step_key: stepKey, script_snapshot: scriptSnapshot, attempt, status, started_at: status === 'running' ? created : null, input_hash: inputHash, created_at: created, updated_at: created })
       return first(rows(result))
     },
     async finishStepRun(id, patch = {}) { const result = await client.patch('collection_step_runs', [{ column: 'id', operator: 'eq', value: id }], { ...patch, updated_at: now() }); return first(rows(result)) },
